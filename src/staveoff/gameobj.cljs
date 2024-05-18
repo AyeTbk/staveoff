@@ -24,7 +24,7 @@
    :pos [0 0]
    :size [10 10]
    :vel [200 200]
-   :tags #{:collider}})
+   :phys-tags #{:collider}})
 
 (defn keep-in-bounds [ball [width height]]
   (let [rect (make-rect ball)
@@ -99,7 +99,7 @@
 (defn ball-bounce-on-paddle [ball paddle]
   (let [true-hit-normal (ball-hit-normal ball paddle)
         paddle-to-ball-dir (dir-from-to paddle ball)
-        control-factor (let [max-dist 30
+        control-factor (let [max-dist 15
                              dist (dist-from-to paddle ball)]
                          (- 1 (/ (clamp (- max-dist dist) 0 max-dist) max-dist)))
         hit-top-of-paddle (> (v-dot true-hit-normal [0 -1]) 0)
@@ -138,7 +138,7 @@
   {:kind :paddle
    :pos [0 (-> (numb/canvas-size) get-y (- 40))]
    :size [75 10]
-   :tags #{:collider}})
+   :phys-tags #{:collider}})
 
 (defmethod tick-obj :paddle
   [paddle input _dt]

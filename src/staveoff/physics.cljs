@@ -2,13 +2,15 @@
   (:require [numb.math :refer [rect-overlaps]]
             [staveoff.gameobj :refer [on-collision]]))
 
-(defn is-collider? [obj] (-> obj :tags (contains? :collider)))
-(defn is-trigger? [obj] (-> obj :tags (contains? :trigger)))
+(defn is-collider? [obj] (-> obj :phys-tags (contains? :collider)))
+(defn is-trigger? [obj] (-> obj :phys-tags (contains? :trigger)))
+(defn is-passive? [obj] (-> obj :phys-tags (contains? :passive)))
 (defn is-physobj? [obj] (or (is-collider? obj) (is-trigger? obj)))
 
 (defn tick-physics [gameobjs]
   (let [enumerate (fn [coll] (map vector (range) coll))
-        physobjs (filter #(is-physobj? (second %)) (enumerate gameobjs))
+        physobjs (filter #(let [obj (second %)]
+                            (and (is-physobj? obj) (not (is-passive? obj)))) (enumerate gameobjs))
         colliders (filter #(is-collider? (second %)) (enumerate gameobjs))
         candidate-pairs (for [[i a] physobjs
                               [j b] colliders
