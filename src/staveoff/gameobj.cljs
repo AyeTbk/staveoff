@@ -14,6 +14,8 @@
 (defn dir-from-to [from to]
   (v-normalize (v- (-> to make-rect :center) (-> from make-rect :center))))
 
+(defn dist-from-to [from to]
+  (v-norm (v- (-> to make-rect :center) (-> from make-rect :center))))
 
 ;; Ball
 
@@ -52,14 +54,14 @@
   "Assumes ball and b overlap. Returns hit normal of ball on b."
   [ball b]
   (let [ball-to-b (dir-from-to ball b)
-        ball (make-rect ball)
-        b (make-rect b)
+        ball-rect (make-rect ball)
+        b-rect (make-rect b)
         depth-x (if (>= (-> ball :vel get-x) 0)
-                  (- (:right ball) (:left b))
-                  (- (:left ball) (:right b)))
+                  (- (:right ball-rect) (:left b-rect))
+                  (- (:left ball-rect) (:right b-rect)))
         depth-y (if (>= (-> ball :vel get-y) 0)
-                  (- (:bottom ball) (:top b))
-                  (- (:top ball) (:bottom b)))
+                  (- (:bottom ball-rect) (:top b-rect))
+                  (- (:top ball-rect) (:bottom b-rect)))
         hit-normal (if (<= (abs depth-x) (abs depth-y))
                      [(- (signum (get-x ball-to-b))) 0]
                      [0 (- (signum (get-y ball-to-b)))])
@@ -72,14 +74,14 @@
   "Assumes ball and b overlap. Returns hit depth of ball and b."
   [ball b]
   (let [ball-to-b (dir-from-to ball b)
-        ball (make-rect ball)
-        b (make-rect b)
+        ball-rect (make-rect ball)
+        b-rect (make-rect b)
         depth-x (if (>= (get-x ball-to-b) 0)
-                  (- (:right ball) (:left b))
-                  (- (:left ball) (:right b)))
+                  (- (:right ball-rect) (:left b-rect))
+                  (- (:left ball-rect) (:right b-rect)))
         depth-y (if (>= (get-y ball-to-b) 0)
-                  (- (:bottom ball) (:top b))
-                  (- (:top ball) (:bottom b)))]
+                  (- (:bottom ball-rect) (:top b-rect))
+                  (- (:top ball-rect) (:bottom b-rect)))]
     (if (<= (abs depth-x) (abs depth-y))
       [depth-x 0]
       [0 depth-y])))
@@ -97,9 +99,12 @@
 (defn ball-bounce-on-paddle [ball paddle]
   (let [true-hit-normal (ball-hit-normal ball paddle)
         paddle-to-ball-dir (dir-from-to paddle ball)
+        control-factor (let [max-dist 30
+                             dist (dist-from-to paddle ball)]
+                         (- 1 (/ (clamp (- max-dist dist) 0 max-dist) max-dist)))
         hit-top-of-paddle (> (v-dot true-hit-normal [0 -1]) 0)
         hit-normal (if hit-top-of-paddle
-                     (v-normalize (v+ true-hit-normal paddle-to-ball-dir))
+                     (v-normalize (v+ true-hit-normal (v* paddle-to-ball-dir control-factor)))
                      true-hit-normal)
         reflected-vel (if hit-top-of-paddle
                         (v* hit-normal (* (-> ball :vel v-norm) ball-paddle-bounce-accel))

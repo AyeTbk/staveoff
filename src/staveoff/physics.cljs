@@ -10,23 +10,22 @@
   (let [enumerate (fn [coll] (map vector (range) coll))
         physobjs (filter #(is-physobj? (second %)) (enumerate gameobjs))
         colliders (filter #(is-collider? (second %)) (enumerate gameobjs))
-        collision-pairs (for [[i a] physobjs
+        candidate-pairs (for [[i a] physobjs
                               [j b] colliders
                               :when (> j i)]
                           [[i a] [j b]])
-        collisions-wompus (flatten
-                           (for [[[i a] [j b]] collision-pairs]
-                             (if (rect-overlaps a b)
-                               (if (is-trigger? a)
-                                 {:idx i :others [b]}
-                                 [{:idx i :others [b]} {:idx j :others [a]}])
-                               [])))
-        wompus-indices (set (map :idx collisions-wompus))
-        collisions-per-obj (into {} (for [idx wompus-indices]
+        collision-pairs (flatten
+                         (for [[[i a] [j b]] candidate-pairs]
+                           (if (rect-overlaps a b)
+                             (if (is-trigger? a)
+                               {:idx i :others [b]}
+                               [{:idx i :others [b]} {:idx j :others [a]}])
+                             [])))
+        collisions-per-obj (into {} (for [idx (set (map :idx collision-pairs))]
                                       (let [all-others-of-idx (flatten
-                                                               (for [womp collisions-wompus
-                                                                     :when (= (:idx womp) idx)]
-                                                                 (:others womp)))]
+                                                               (for [pair collision-pairs
+                                                                     :when (= (:idx pair) idx)]
+                                                                 (:others pair)))]
                                         {idx all-others-of-idx})))]
     (for [[i obj] (enumerate gameobjs)]
       (let [collisions (get collisions-per-obj i)]
