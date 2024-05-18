@@ -1,0 +1,11 @@
+Base gameplay is basically breakout, but instead of going through
+levels by clearing the bricks of a screen, instead the difficulty
+increases the longer the game has been going, with the whole wall
+of bricks coming down, one step at a time, slow at first then
+faster and faster, kind of like Space Invaders but there are always
+new bricks appearing from the top of the screen.
+
+As the bricks start appearing faster and become more difficult to
+break, you need to get upgrades/level up to be able to keep up
+with them. The paddle (player) is destroyed if it comes in contact
+with a brick.
