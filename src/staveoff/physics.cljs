@@ -12,17 +12,20 @@
         physobjs (filter #(let [obj (second %)]
                             (and (is-physobj? obj) (not (is-passive? obj)))) (enumerate gameobjs))
         colliders (filter #(is-collider? (second %)) (enumerate gameobjs))
-        candidate-pairs (for [[i a] physobjs
-                              [j b] colliders
-                              :when (> j i)]
-                          [[i a] [j b]])
+        candidate-pairs (set
+                         (for [[i _a] physobjs
+                               [j _b] colliders
+                               :when (not= j i)]
+                           [(min i j) (max i j)]))
         collision-pairs (flatten
-                         (for [[[i a] [j b]] candidate-pairs]
-                           (if (rect-overlaps a b)
-                             (if (is-trigger? a)
-                               {:idx i :others [b]}
-                               [{:idx i :others [b]} {:idx j :others [a]}])
-                             [])))
+                         (for [[i j] candidate-pairs]
+                           (let [a (get gameobjs i)
+                                 b (get gameobjs j)]
+                             (if (rect-overlaps a b)
+                               (if (is-trigger? a)
+                                 {:idx i :others [b]}
+                                 [{:idx i :others [b]} {:idx j :others [a]}])
+                               []))))
         collisions-per-obj (into {} (for [idx (set (map :idx collision-pairs))]
                                       (let [all-others-of-idx (flatten
                                                                (for [pair collision-pairs

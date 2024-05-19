@@ -182,16 +182,31 @@
 
 ;; Brick manager
 
+(defonce descent-delay 3)
+(defonce descend-i-command-you! false)
+
 (declare make-brick)
 (defn make-brick-manager []
   {:kind :brick-manager
-   :descent-timer nil})
+   :descent-timer (make-timer 0 :cyclic)})
 
 (defmethod tick-obj :brick-manager
-  [self input _dt]
-  (if (-> input :mouse :just-pressed (contains? :middle))
-    [self (make-brick (-> input :mouse :pos))]
-    self))
+  [self _input dt]
+  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer self) dt)
+        new-descent-timer (if descent-triggered
+                            (-> descent-timer
+                                (assoc :duration descent-delay)
+                                (assoc :elapsed 0))
+                            descent-timer)
+        new-self (assoc self :descent-timer new-descent-timer)]
+    (set! descend-i-command-you! false)
+    (when descent-triggered
+      (set! descend-i-command-you! true))
+    [new-self
+     (if descent-triggered
+       (vec (for [x (range 10)]
+              (make-brick [(+ (* x (+ 45 5)) 120) -25])))
+       [])]))
 
 (defmethod draw-obj :brick-manager
   [_]
@@ -205,21 +220,18 @@
   {:kind :brick
    :pos pos
    :size [45 20]
-   :descent-timer (make-timer 2 :cyclic)
    :descent-tween (make-tween (get-y pos) (get-y pos) 0.25)
    :phys-tags #{:collider :passive}})
 
 (defmethod tick-obj :brick
   [self _input dt]
-  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer self) dt)
-        [old-x old-y] (:pos self)
-        descent-tween (if descent-triggered
-                        (make-tween old-y (+ old-y 20) 0.25)
+  (let [[old-x old-y] (:pos self)
+        descent-tween (if descend-i-command-you!
+                        (make-tween old-y (+ old-y 25) 0.25)
                         (:descent-tween self))
         [descent-tween tweened-y _finished] (tick-tween descent-tween dt)
         new-pos [old-x tweened-y]]
     (-> self
-        (assoc :descent-timer descent-timer)
         (assoc :descent-tween descent-tween)
         (assoc :pos new-pos))))
 
