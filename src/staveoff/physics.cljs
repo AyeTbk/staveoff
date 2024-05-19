@@ -1,6 +1,6 @@
 (ns staveoff.physics
   (:require [numb.math :refer [rect-overlaps]]
-            [staveoff.gameobj :refer [on-collision]]))
+            [staveoff.gameobj :refer [cleanup-gameobjs on-collision]]))
 
 (defn is-collider? [obj] (-> obj :phys-tags (contains? :collider)))
 (defn is-trigger? [obj] (-> obj :phys-tags (contains? :trigger)))
@@ -29,8 +29,12 @@
                                                                      :when (= (:idx pair) idx)]
                                                                  (:others pair)))]
                                         {idx all-others-of-idx})))
-        resolved-gameobjs (for [[i obj] (enumerate gameobjs)]
-                            (let [collisions (get collisions-per-obj i)]
-                              (reduce #(if %1 (on-collision %1 %2) (reduced nil)) obj collisions)))
-        gameobjs-without-nils (vec (filter #(not (nil? %)) resolved-gameobjs))]
-    gameobjs-without-nils))
+        resolved-gameobjs (cleanup-gameobjs
+                           (for [[i obj] (enumerate gameobjs)]
+                             (let [collisions (get collisions-per-obj i)]
+                               (reduce
+                                #(cond
+                                   (nil? %1) (reduced nil)
+                                   (vector? %1) (reduced %1)
+                                   :else (on-collision %1 %2)) obj collisions))))]
+    resolved-gameobjs))

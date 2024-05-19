@@ -7,10 +7,21 @@
                                decompose-rect]]
             [clojure.math :refer [signum]]))
 
+
+(defn cleanup-gameobjs [gameobjs]
+  (vec (filter some? (flatten gameobjs))))
+
+
 (defmulti tick-obj (fn [obj _input _dt] (:kind obj)))
 (defmulti draw-obj (fn [obj] (:kind obj)))
 (defmulti on-collision (fn [obj _other] (:kind obj)))
 
+(defmethod tick-obj :default [self _ _]
+  (throw (js/Error. (str "tick-obj unimplemented for " self))))
+(defmethod draw-obj :default [self]
+  (throw (js/Error. (str "draw-obj unimplemented for " self))))
+(defmethod on-collision :default [self _]
+  (throw (js/Error. (str "on-collision unimplemented for " self))))
 
 
 (defn dir-from-to [from to]
@@ -18,6 +29,8 @@
 
 (defn dist-from-to [from to]
   (v-norm (v- (-> to decompose-rect :center) (-> from decompose-rect :center))))
+
+
 
 ;; Ball
 
@@ -118,20 +131,20 @@
     ball))
 
 (defmethod tick-obj :ball
-  [ball _input dt]
-  (-> ball
-      (assoc :pos (v+ (:pos ball) (v* (:vel ball) dt)))
+  [self _input dt]
+  (-> self
+      (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
       (keep-in-bounds (numb/canvas-size))))
 
 (defmethod draw-obj :ball
-  [ball]
-  {:kind :rect :pos (:pos ball) :size (:size ball) :fill "red"})
+  [self]
+  {:kind :rect :pos (:pos self) :size (:size self) :fill "red"})
 
 (defmethod on-collision :ball
-  [ball other]
+  [self other]
   (if (= (:kind other) :paddle)
-    (ball-bounce-on-paddle ball other)
-    (ball-bounce-on-rect ball other)))
+    (ball-bounce-on-paddle self other)
+    (ball-bounce-on-rect self other)))
 
 
 
@@ -144,26 +157,45 @@
    :phys-tags #{:collider}})
 
 (defmethod tick-obj :paddle
-  [paddle input _dt]
-  (let [rect (decompose-rect paddle)
+  [self input _dt]
+  (let [rect (decompose-rect self)
         half-width (-> rect :width (/ 2))
         mouse-x (-> input :mouse :pos get-x)
         target-center-x (clamp mouse-x half-width (-> (numb/canvas-size) get-x (- half-width)))
         new-left (- target-center-x half-width)
         new-top (:top rect)]
-    (assoc paddle :pos [new-left new-top])))
+    (assoc self :pos [new-left new-top])))
 
 (defmethod draw-obj :paddle
-  [paddle]
-  (let [half-size (vdiv (:size paddle) 2)
+  [self]
+  (let [half-size (vdiv (:size self) 2)
         [half-width _] half-size]
-    [{:kind :rect :pos (:pos paddle) :size (:size paddle) :fill "lightgray" :stroke "darkgray"}
-     {:kind :rect :pos (:pos paddle) :size half-size :fill "red" :stroke "darkgray"}
-     {:kind :rect :pos (v+ (:pos paddle) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
+    [{:kind :rect :pos (:pos self) :size (:size self) :fill "lightgray" :stroke "darkgray"}
+     {:kind :rect :pos (:pos self) :size half-size :fill "red" :stroke "darkgray"}
+     {:kind :rect :pos (v+ (:pos self) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
 
 (defmethod on-collision :paddle
-  [paddle _]
-  paddle)
+  [self _]
+  self)
+
+
+
+;; Brick manager
+
+(declare make-brick)
+(defn make-brick-manager []
+  {:kind :brick-manager
+   :descent-timer nil})
+
+(defmethod tick-obj :brick-manager
+  [self input _dt]
+  (if (-> input :mouse :just-pressed (contains? :middle))
+    [self (make-brick (-> input :mouse :pos))]
+    self))
+
+(defmethod draw-obj :brick-manager
+  [_]
+  [])
 
 
 
@@ -175,26 +207,26 @@
    :size [45 20]
    :descent-timer (make-timer 2 :cyclic)
    :descent-tween (make-tween (get-y pos) (get-y pos) 0.25)
-   :phys-tags #{:collider}})
+   :phys-tags #{:collider :passive}})
 
 (defmethod tick-obj :brick
-  [brick _input dt]
-  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer brick) dt)
-        [old-x old-y] (:pos brick)
+  [self _input dt]
+  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer self) dt)
+        [old-x old-y] (:pos self)
         descent-tween (if descent-triggered
                         (make-tween old-y (+ old-y 20) 0.25)
-                        (:descent-tween brick))
+                        (:descent-tween self))
         [descent-tween tweened-y _finished] (tick-tween descent-tween dt)
         new-pos [old-x tweened-y]]
-    (-> brick
+    (-> self
         (assoc :descent-timer descent-timer)
         (assoc :descent-tween descent-tween)
         (assoc :pos new-pos))))
 
 (defmethod draw-obj :brick
-  [brick]
-  {:kind :rect :pos (:pos brick) :size (:size brick) :fill "green" :stroke "darkgreen"})
+  [self]
+  {:kind :rect :pos (:pos self) :size (:size self) :fill "green" :stroke "darkgreen"})
 
 (defmethod on-collision :brick
-  [_brick _]
+  [_ _]
   nil)
