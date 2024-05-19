@@ -28,7 +28,9 @@
                                                                (for [pair collision-pairs
                                                                      :when (= (:idx pair) idx)]
                                                                  (:others pair)))]
-                                        {idx all-others-of-idx})))]
-    (for [[i obj] (enumerate gameobjs)]
-      (let [collisions (get collisions-per-obj i)]
-        (reduce on-collision obj collisions)))))
+                                        {idx all-others-of-idx})))
+        resolved-gameobjs (for [[i obj] (enumerate gameobjs)]
+                            (let [collisions (get collisions-per-obj i)]
+                              (reduce #(if %1 (on-collision %1 %2) (reduced nil)) obj collisions)))
+        gameobjs-without-nils (vec (filter #(not (nil? %)) resolved-gameobjs))]
+    gameobjs-without-nils))

@@ -1,9 +1,23 @@
 (ns numb.math
-  (:require [clojure.math :refer [sqrt]]))
+  (:require [clojure.math :refer [sqrt pow cos PI]]))
 
 
 (defn clamp [val min-val max-val]
   (-> val (min max-val) (max min-val)))
+
+
+;; Interpolation
+
+(defn lerp [from to t]
+  (+ from (* (- to from) t)))
+
+(defn ease-in-ease-out [from to t]
+  (let [eased-t (/ (+ (cos (* PI (+ 1 t))) 1) 2)]
+    (lerp from to eased-t)))
+
+(defn ease-out [from to t]
+  (let [eased-t (- 1 (pow (- t 1) 2))]
+    (lerp from to eased-t)))
 
 
 ;; Vectors
@@ -37,7 +51,7 @@
 
 ;; Rects
 
-(defn make-rect [& {:keys [pos size]}]
+(defn decompose-rect [& {:keys [pos size]}]
   (let [[width height] size
         [left top] pos
         [right bottom] (v+ pos size)
@@ -45,8 +59,8 @@
     {:top top :left left :bottom bottom :right right :center center :width width :height height}))
 
 (defn rect-overlaps [a b]
-  (let [a (make-rect a)
-        b (make-rect b)
+  (let [a (decompose-rect a)
+        b (decompose-rect b)
         overlaps-x (and (<= (:left a) (:right b)) (>= (:right a) (:left b)))
         overlaps-y (and (<= (:top a) (:bottom b)) (>= (:bottom a) (:top b)))]
     (and overlaps-x overlaps-y)))

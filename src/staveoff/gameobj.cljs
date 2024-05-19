@@ -1,8 +1,10 @@
 (ns staveoff.gameobj
   (:require [numb.prelude :as numb]
+            [numb.time :refer [make-timer tick-timer
+                               make-tween tick-tween]]
             [numb.math :refer [clamp
-                               v+ v- v* v-dot v-norm v-normalize v-reflect get-x get-y
-                               make-rect]]
+                               v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
+                               decompose-rect]]
             [clojure.math :refer [signum]]))
 
 (defmulti tick-obj (fn [obj _input _dt] (:kind obj)))
@@ -12,10 +14,10 @@
 
 
 (defn dir-from-to [from to]
-  (v-normalize (v- (-> to make-rect :center) (-> from make-rect :center))))
+  (v-normalize (v- (-> to decompose-rect :center) (-> from decompose-rect :center))))
 
 (defn dist-from-to [from to]
-  (v-norm (v- (-> to make-rect :center) (-> from make-rect :center))))
+  (v-norm (v- (-> to decompose-rect :center) (-> from decompose-rect :center))))
 
 ;; Ball
 
@@ -23,11 +25,11 @@
   {:kind :ball
    :pos [0 0]
    :size [10 10]
-   :vel [200 200]
+   :vel [0 300]
    :phys-tags #{:collider}})
 
 (defn keep-in-bounds [ball [width height]]
-  (let [rect (make-rect ball)
+  (let [rect (decompose-rect ball)
         is-outside-left (< (:left rect) 0)
         is-outside-right (> (:right rect) width)
         is-outside-top (< (:top rect) 0)
@@ -54,8 +56,8 @@
   "Assumes ball and b overlap. Returns hit normal of ball on b."
   [ball b]
   (let [ball-to-b (dir-from-to ball b)
-        ball-rect (make-rect ball)
-        b-rect (make-rect b)
+        ball-rect (decompose-rect ball)
+        b-rect (decompose-rect b)
         depth-x (if (>= (-> ball :vel get-x) 0)
                   (- (:right ball-rect) (:left b-rect))
                   (- (:left ball-rect) (:right b-rect)))
@@ -74,8 +76,8 @@
   "Assumes ball and b overlap. Returns hit depth of ball and b."
   [ball b]
   (let [ball-to-b (dir-from-to ball b)
-        ball-rect (make-rect ball)
-        b-rect (make-rect b)
+        ball-rect (decompose-rect ball)
+        b-rect (decompose-rect b)
         depth-x (if (>= (get-x ball-to-b) 0)
                   (- (:right ball-rect) (:left b-rect))
                   (- (:left ball-rect) (:right b-rect)))
@@ -107,11 +109,12 @@
                      (v-normalize (v+ true-hit-normal (v* paddle-to-ball-dir control-factor)))
                      true-hit-normal)
         reflected-vel (if hit-top-of-paddle
-                        (v* hit-normal (* (-> ball :vel v-norm) ball-paddle-bounce-accel))
+                        (v* hit-normal (-> ball :vel v-norm))
                         (v-reflect (:vel ball) hit-normal))
+        accelerated-vel (v* reflected-vel ball-paddle-bounce-accel)
         hit-depth  (ball-hit-depth ball paddle)
         new-pos (v- (:pos ball) hit-depth)
-        ball (-> ball (assoc :vel reflected-vel) (assoc :pos new-pos))]
+        ball (-> ball (assoc :vel accelerated-vel) (assoc :pos new-pos))]
     ball))
 
 (defmethod tick-obj :ball
@@ -142,7 +145,7 @@
 
 (defmethod tick-obj :paddle
   [paddle input _dt]
-  (let [rect (make-rect paddle)
+  (let [rect (decompose-rect paddle)
         half-width (-> rect :width (/ 2))
         mouse-x (-> input :mouse :pos get-x)
         target-center-x (clamp mouse-x half-width (-> (numb/canvas-size) get-x (- half-width)))
@@ -152,8 +155,46 @@
 
 (defmethod draw-obj :paddle
   [paddle]
-  {:kind :rect :pos (:pos paddle) :size (:size paddle) :fill "lightgray" :stroke "darkgray"})
+  (let [half-size (vdiv (:size paddle) 2)
+        [half-width _] half-size]
+    [{:kind :rect :pos (:pos paddle) :size (:size paddle) :fill "lightgray" :stroke "darkgray"}
+     {:kind :rect :pos (:pos paddle) :size half-size :fill "red" :stroke "darkgray"}
+     {:kind :rect :pos (v+ (:pos paddle) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
 
 (defmethod on-collision :paddle
   [paddle _]
   paddle)
+
+
+
+;; Brick
+
+(defn make-brick [pos]
+  {:kind :brick
+   :pos pos
+   :size [45 20]
+   :descent-timer (make-timer 2 :cyclic)
+   :descent-tween (make-tween (get-y pos) (get-y pos) 0.25)
+   :phys-tags #{:collider}})
+
+(defmethod tick-obj :brick
+  [brick _input dt]
+  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer brick) dt)
+        [old-x old-y] (:pos brick)
+        descent-tween (if descent-triggered
+                        (make-tween old-y (+ old-y 20) 0.25)
+                        (:descent-tween brick))
+        [descent-tween tweened-y _finished] (tick-tween descent-tween dt)
+        new-pos [old-x tweened-y]]
+    (-> brick
+        (assoc :descent-timer descent-timer)
+        (assoc :descent-tween descent-tween)
+        (assoc :pos new-pos))))
+
+(defmethod draw-obj :brick
+  [brick]
+  {:kind :rect :pos (:pos brick) :size (:size brick) :fill "green" :stroke "darkgreen"})
+
+(defmethod on-collision :brick
+  [_brick _]
+  nil)
