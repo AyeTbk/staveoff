@@ -1,22 +1,30 @@
 (ns staveoff.main
   (:require [numb.prelude :as numb]
+            [staveoff.manager :refer [tick-mgr draw-mgr make-game-manager make-brick-manager]]
             [staveoff.gameobj :refer [cleanup-gameobjs
-                                      tick-obj draw-obj
-                                      make-ball make-paddle make-brick-manager]]
+                                      tick-obj draw-obj]]
             [staveoff.physics :refer [tick-physics]]))
 
 
+(defonce mgrs [])
 (defonce gameobjs [])
+(defonce resources {})
 
 
 (numb/run-game!
  :init
  (fn []
-   (set! gameobjs [(make-brick-manager) (make-paddle) (make-ball)]))
+   (set! mgrs [(make-game-manager) (make-brick-manager)])
+   (set! gameobjs []))
 
  :tick
  (fn [input dt]
-   (set! gameobjs (cleanup-gameobjs (map #(tick-obj % input dt) gameobjs)))
+   (set! mgrs (mapv
+               (fn [mgr] (let [[new-mgr new-gameobjs new-resources] (tick-mgr mgr gameobjs resources input dt)]
+                           (set! gameobjs new-gameobjs)
+                           (set! resources new-resources)
+                           new-mgr)) mgrs))
+   (set! gameobjs (cleanup-gameobjs (map #(tick-obj % resources input dt) gameobjs)))
    (set! gameobjs (tick-physics gameobjs)))
 
  :draw
@@ -24,13 +32,15 @@
    (flatten
     [:clear
      (for [gameobj gameobjs]
-       (draw-obj gameobj))])))
+       (draw-obj gameobj))
+     (for [mgr mgrs]
+       (draw-mgr mgr gameobjs resources))])))
 
 
 ;; TODO
 ;; Game state management
-;; - Start menu
-;; - Game begins moment
+;; x Start menu
+;; x Game begins moment
 ;; - Gameplay loop
 ;; - Pause menu?
 ;; - Win/loss condition

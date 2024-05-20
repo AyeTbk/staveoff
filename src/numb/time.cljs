@@ -1,5 +1,5 @@
 (ns numb.time
-  (:require [numb.math :refer [clamp ease-out]]))
+  (:require [numb.math :refer [clamp]]))
 
 (defn make-timer [duration & options]
   (let [options (set options)]
@@ -28,16 +28,17 @@
       [new-timer triggered])))
 
 
-(defn make-tween [start end duration]
+(defn make-tween [start end duration interpolation-fn]
   {:start start
    :end end
    :duration duration
+   :interpolation-fn interpolation-fn
    :elapsed 0})
 
 (defn tick-tween [tween dt]
   (let [elapsed (+ (:elapsed tween) dt)
         finished (>= elapsed (:duration tween))
         t (clamp (/ elapsed (:duration tween)) 0 1)
-        tweened-value (ease-out (:start tween) (:end tween) t)
+        tweened-value ((:interpolation-fn tween) (:start tween) (:end tween) t)
         new-tween (assoc tween :elapsed elapsed)]
     [new-tween tweened-value finished]))

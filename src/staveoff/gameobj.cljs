@@ -1,8 +1,7 @@
 (ns staveoff.gameobj
   (:require [numb.prelude :as numb]
-            [numb.time :refer [make-timer tick-timer
-                               make-tween tick-tween]]
-            [numb.math :refer [clamp
+            [numb.time :refer [make-tween tick-tween]]
+            [numb.math :refer [clamp ease-out ease-in-ease-out
                                v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
                                decompose-rect]]
             [clojure.math :refer [signum]]))
@@ -12,11 +11,11 @@
   (vec (filter some? (flatten gameobjs))))
 
 
-(defmulti tick-obj (fn [obj _input _dt] (:kind obj)))
+(defmulti tick-obj (fn [obj _resources _input _dt] (:kind obj)))
 (defmulti draw-obj (fn [obj] (:kind obj)))
 (defmulti on-collision (fn [obj _other] (:kind obj)))
 
-(defmethod tick-obj :default [self _ _]
+(defmethod tick-obj :default [self _ _ _]
   (throw (js/Error. (str "tick-obj unimplemented for " self))))
 (defmethod draw-obj :default [self]
   (throw (js/Error. (str "draw-obj unimplemented for " self))))
@@ -32,14 +31,59 @@
 
 
 
+;; Paddle
+
+(defn compute-paddle-target-y []
+  (-> (numb/canvas-size) get-y (- 40)))
+
+(defn compute-paddle-start-y []
+  (-> (numb/canvas-size) get-y))
+
+(defn make-paddle []
+  {:kind :paddle
+   :pos [0 0]
+   :size [75 10]
+   :phys-tags #{:collider}
+   :spawn-tween (make-tween (compute-paddle-start-y) (compute-paddle-target-y) 0.5 ease-in-ease-out)})
+
+(defmethod tick-obj :paddle
+  [self _resources input dt]
+  (let [rect (decompose-rect self)
+        half-width (-> rect :width (/ 2))
+        mouse-x (-> input :mouse :pos get-x)
+        target-center-x (clamp mouse-x half-width (-> (numb/canvas-size) get-x (- half-width)))
+        new-left (- target-center-x half-width)
+        [new-spawn-tween new-top _] (tick-tween (:spawn-tween self) dt)]
+    (-> self
+        (assoc :spawn-tween new-spawn-tween)
+        (assoc :pos [new-left new-top]))))
+
+(defmethod draw-obj :paddle
+  [self]
+  (let [half-size (vdiv (:size self) 2)
+        [half-width _] half-size]
+    [{:kind :rect :pos (:pos self) :size (:size self) :fill "lightgray" :stroke "darkgray"}
+     {:kind :rect :pos (:pos self) :size half-size :fill "red" :stroke "darkgray"}
+     {:kind :rect :pos (v+ (:pos self) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
+
+(defmethod on-collision :paddle
+  [self _]
+  self)
+
+
+
 ;; Ball
 
 (defn make-ball []
-  {:kind :ball
-   :pos [0 0]
-   :size [10 10]
-   :vel [0 300]
-   :phys-tags #{:collider}})
+  (let [size 10
+        canvas-x (get-x (numb/canvas-size))
+        pos-x (/ (+ canvas-x size) 2)
+        pos-y (- (compute-paddle-target-y) 30)]
+    {:kind :ball
+     :pos [pos-x pos-y]
+     :size [size size]
+     :vel [0 -300]
+     :phys-tags #{:collider}}))
 
 (defn keep-in-bounds [ball [width height]]
   (let [rect (decompose-rect ball)
@@ -67,6 +111,14 @@
 
 (defn ball-hit-normal
   "Assumes ball and b overlap. Returns hit normal of ball on b."
+  ;; FIXME Potential problem: when there are multiple simultaneous collisions,
+  ;; they get resolved one by one, *affecting the ball's velocity* every time,
+  ;; which means that all but the first resolution will have the (wrong)
+  ;; updated vel instead of the (correct) initial vel.
+  ;; I believe this is the reason the ball seems to "cheat" sometimes, passing
+  ;; through multiple bricks when it clearly shouldn't.
+  ;; Maybe substepping can reduce the amount of simultaneous collision, making
+  ;; this problem not so problematic.
   [ball b]
   (let [ball-to-b (dir-from-to ball b)
         ball-rect (decompose-rect ball)
@@ -131,7 +183,7 @@
     ball))
 
 (defmethod tick-obj :ball
-  [self _input dt]
+  [self _resources _input dt]
   (-> self
       (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
       (keep-in-bounds (numb/canvas-size))))
@@ -148,86 +200,22 @@
 
 
 
-;; Paddle
-
-(defn make-paddle []
-  {:kind :paddle
-   :pos [0 (-> (numb/canvas-size) get-y (- 40))]
-   :size [75 10]
-   :phys-tags #{:collider}})
-
-(defmethod tick-obj :paddle
-  [self input _dt]
-  (let [rect (decompose-rect self)
-        half-width (-> rect :width (/ 2))
-        mouse-x (-> input :mouse :pos get-x)
-        target-center-x (clamp mouse-x half-width (-> (numb/canvas-size) get-x (- half-width)))
-        new-left (- target-center-x half-width)
-        new-top (:top rect)]
-    (assoc self :pos [new-left new-top])))
-
-(defmethod draw-obj :paddle
-  [self]
-  (let [half-size (vdiv (:size self) 2)
-        [half-width _] half-size]
-    [{:kind :rect :pos (:pos self) :size (:size self) :fill "lightgray" :stroke "darkgray"}
-     {:kind :rect :pos (:pos self) :size half-size :fill "red" :stroke "darkgray"}
-     {:kind :rect :pos (v+ (:pos self) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
-
-(defmethod on-collision :paddle
-  [self _]
-  self)
-
-
-
-;; Brick manager
-
-(defonce descent-delay 3)
-(defonce descend-i-command-you! false)
-
-(declare make-brick)
-(defn make-brick-manager []
-  {:kind :brick-manager
-   :descent-timer (make-timer 0 :cyclic)})
-
-(defmethod tick-obj :brick-manager
-  [self _input dt]
-  (let [[descent-timer descent-triggered] (tick-timer (:descent-timer self) dt)
-        new-descent-timer (if descent-triggered
-                            (-> descent-timer
-                                (assoc :duration descent-delay)
-                                (assoc :elapsed 0))
-                            descent-timer)
-        new-self (assoc self :descent-timer new-descent-timer)]
-    (set! descend-i-command-you! false)
-    (when descent-triggered
-      (set! descend-i-command-you! true))
-    [new-self
-     (if descent-triggered
-       (vec (for [x (range 10)]
-              (make-brick [(+ (* x (+ 45 5)) 120) -25])))
-       [])]))
-
-(defmethod draw-obj :brick-manager
-  [_]
-  [])
-
-
-
 ;; Brick
+
+(defonce descent-animation-duration 0.25)
 
 (defn make-brick [pos]
   {:kind :brick
    :pos pos
    :size [45 20]
-   :descent-tween (make-tween (get-y pos) (get-y pos) 0.25)
+   :descent-tween (make-tween (get-y pos) (get-y pos) descent-animation-duration ease-out)
    :phys-tags #{:collider :passive}})
 
 (defmethod tick-obj :brick
-  [self _input dt]
+  [self resources _input dt]
   (let [[old-x old-y] (:pos self)
-        descent-tween (if descend-i-command-you!
-                        (make-tween old-y (+ old-y 25) 0.25)
+        descent-tween (if (:descend-i-command-you! resources)
+                        (make-tween old-y (+ old-y 25) descent-animation-duration ease-out)
                         (:descent-tween self))
         [descent-tween tweened-y _finished] (tick-tween descent-tween dt)
         new-pos [old-x tweened-y]]
