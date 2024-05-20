@@ -9,3 +9,18 @@ As the bricks start appearing faster and become more difficult to
 break, you need to get upgrades/level up to be able to keep up
 with them. The paddle (player) is destroyed if it comes in contact
 with a brick.
+
+Brick ideas:
+- bricks that take multiple hits to be destroyed.
+- bricks that, when hit, fall down (gotta dodge!).
+- portions of the onslaught could start descending really fast but
+   it would have paths through it, the player has to dodge through
+   the paths like a precision mouse game.
+- ...?
+
+Buffs ideas:
+- Classic power ups falling from destroyed bricks?
+- XP + levels or buff items (survivor like)?
+- Recall the ball?
+- ...?
+

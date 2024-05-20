@@ -1,8 +1,10 @@
 (ns staveoff.manager
   (:require
+   [numb.math :refer [get-y]]
    [numb.time :refer [make-timer tick-timer]]
    [staveoff.gameobj :refer [make-paddle make-ball make-brick
-                             descent-animation-duration]]))
+                             descent-animation-duration]]
+   [numb.prelude :as numb]))
 
 
 ;; Return a vector of updated [mgr gameobjs resources].
@@ -16,7 +18,7 @@
 
 
 (defonce automatic-descent-active false)
-(defonce automatic-descent-delay 3)
+(defonce automatic-descent-delay 1)
 (defonce descent-request-count 0)
 
 
@@ -54,6 +56,24 @@
             new-gameobjs (vec (concat gameobjs [(make-ball)]))]
         [self new-gameobjs new-resources])
       [self gameobjs resources])
+    :game
+    (let [paddle-exists (true?
+                         (some #(= (:kind %) :paddle)
+                               gameobjs))
+          end-of-screen (get-y (numb/canvas-size))
+          ;; TODO Do I really want this lose condition?
+          brick-got-past (true?
+                          (some #(and (= (:kind %) :brick) (>= (-> % :pos get-y) end-of-screen))
+                                gameobjs))
+          game-over? (or brick-got-past (not paddle-exists))
+          new-resources (if game-over?
+                          (assoc resources :game-state :game-over-start)
+                          resources)]
+      (when game-over?
+        (set! automatic-descent-active false))
+      [self gameobjs new-resources])
+    :game-over-start
+    [self gameobjs resources]
     ;else
     [self gameobjs resources]))
 
@@ -70,6 +90,8 @@
      (merge menu-text {:pos [290 350] :text "to start" :fill "white"})]
     :game-start
     []
+    :game-over-start
+    [(merge menu-title {:pos [250 250] :text "u ded"})]
     ;else
     []))
 

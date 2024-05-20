@@ -67,8 +67,10 @@
      {:kind :rect :pos (v+ (:pos self) [half-width 0]) :size half-size :fill "red" :stroke "darkgray"}]))
 
 (defmethod on-collision :paddle
-  [self _]
-  self)
+  [self other]
+  (if (= (:kind other) :brick)
+    nil
+    self))
 
 
 

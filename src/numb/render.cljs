@@ -27,7 +27,7 @@
   (let [brush-fill (or (:fill cmd) "gray")
         brush-stroke (or (:stroke cmd) nil)
         brush-width (or (:line-width cmd) 2)
-        fill? (not= nil brush-fill)
+        fill? (not= nil (:fill cmd))
         stroke? (not= nil  brush-stroke)]
     (when (= cmd :clear)
       (clear! canvas-ctx))
