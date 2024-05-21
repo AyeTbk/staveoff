@@ -1,5 +1,5 @@
 (ns staveoff.physics
-  (:require [numb.math :refer [rect-overlaps]]
+  (:require [numb.math :refer [rect-overlaps?]]
             [staveoff.gameobj :refer [cleanup-gameobjs on-collision]]))
 
 (defn is-collider? [obj] (-> obj :phys-tags (contains? :collider)))
@@ -21,7 +21,7 @@
                          (for [[i j] candidate-pairs]
                            (let [a (get gameobjs i)
                                  b (get gameobjs j)]
-                             (if (rect-overlaps a b)
+                             (if (rect-overlaps? a b)
                                (if (is-trigger? a)
                                  {:idx i :others [b]}
                                  [{:idx i :others [b]} {:idx j :others [a]}])

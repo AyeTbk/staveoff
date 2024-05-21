@@ -2,8 +2,9 @@
   (:require
    [numb.math :refer [get-y]]
    [numb.time :refer [make-timer tick-timer]]
-   [staveoff.gameobj :refer [make-paddle make-ball make-brick
-                             descent-animation-duration]]
+   [staveoff.gameobj :refer [make-paddle make-ball make-brick tagged-with?
+                             descent-animation-duration
+                             make-button clicked?]]
    [numb.prelude :as numb]))
 
 
@@ -18,38 +19,35 @@
 
 
 (defonce automatic-descent-active false)
-(defonce automatic-descent-delay 1)
+(defonce automatic-descent-delay 0.5)
 (defonce descent-request-count 0)
 
 
 ;; Game manager
 
-;; TODO
-;; = game =
-;; to be determined
-;; = lose condition / defeat screen =
-;; When paddle touches a brick (potential for health upgrade?) or a brick gets past you, game over.
 (def menu-text {:kind :text :pos [0 0] :text "" :font "32px sans-serif" :fill "white"})
-(def menu-title (merge menu-text {:font "48px sans-serif"}))
+(def menu-title (merge menu-text {:font "56px sans-serif"}))
 (def menu-small-text (merge menu-text {:font "18px sans-serif"}))
 
 (defn make-game-manager []
   {:kind :game-manager})
 
 (defmethod tick-mgr :game-manager
-  [self gameobjs resources input _dt]
+  [self gameobjs resources _input dt]
   (case (:game-state resources)
     nil
-    (let [new-resources (assoc resources :game-state :main-menu)]
-      [self gameobjs new-resources])
+    (let [new-gameobjs [(make-button [300 330] "Start!" :btn-start)]
+          new-resources (assoc resources :game-state :main-menu)]
+      [self new-gameobjs new-resources])
     :main-menu
-    (if (-> input :mouse :just-pressed (contains? :left))
-      (let [new-gameobjs [(make-paddle)]
-            new-resources {:game-state :game-start}]
-        (set! descent-request-count 8)
-        (set! automatic-descent-active true)
-        [self new-gameobjs new-resources])
-      [self gameobjs resources])
+    (let [should-start-game (some #(and (tagged-with? % :btn-start) (clicked? %)) gameobjs)]
+      (if should-start-game
+        (let [new-gameobjs [(make-paddle)]
+              new-resources {:game-state :game-start}]
+          (set! descent-request-count 8)
+          (set! automatic-descent-active true)
+          [self new-gameobjs new-resources])
+        [self gameobjs resources]))
     :game-start
     (if (= descent-request-count 0)
       (let [new-resources (assoc resources :game-state :game)
@@ -67,13 +65,27 @@
                                 gameobjs))
           game-over? (or brick-got-past (not paddle-exists))
           new-resources (if game-over?
-                          (assoc resources :game-state :game-over-start)
+                          (-> resources
+                              (assoc :game-state :game-over-start)
+                              (assoc :game-over-animation-timer (make-timer 2)))
                           resources)]
       (when game-over?
         (set! automatic-descent-active false))
       [self gameobjs new-resources])
     :game-over-start
-    [self gameobjs resources]
+    (let [[new-timer animation-is-over] (tick-timer (:game-over-animation-timer resources) dt)
+          new-resources (cond-> resources
+                          true (assoc :game-over-animation-timer new-timer)
+                          animation-is-over (assoc :game-state :game-over))
+          new-gameobjs (cond-> gameobjs
+                         animation-is-over (conj (make-button [290 330] "Try again" :btn-restart)))]
+      [self new-gameobjs new-resources])
+    :game-over
+    (let [should-restart-game (some #(and (tagged-with? % :btn-restart) (clicked? %)) gameobjs)
+          new-resources (if should-restart-game
+                          (assoc resources :game-state nil)
+                          resources)]
+      [self gameobjs new-resources])
     ;else
     [self gameobjs resources]))
 
@@ -85,13 +97,11 @@
      (merge menu-small-text {:pos [150 150] :text "Survive until the end."})
      (merge menu-small-text {:pos [150 180] :text "The only threat is the onslaught of bricks."})
      (merge menu-small-text {:pos [150 230] :text "If a brick hits your paddle, it's game over."})
-     (merge menu-small-text {:pos [150 260] :text "If a brick gets past your paddle, it's game over."})
-     (merge menu-text {:pos [150 350] :text "Left click" :fill "red"})
-     (merge menu-text {:pos [290 350] :text "to start" :fill "white"})]
+     (merge menu-small-text {:pos [150 260] :text "If a brick gets past your paddle, it's game over."})]
     :game-start
     []
-    :game-over-start
-    [(merge menu-title {:pos [250 250] :text "u ded"})]
+    :game-over
+    [(merge menu-title {:pos [220 220] :text "Game over"})]
     ;else
     []))
 

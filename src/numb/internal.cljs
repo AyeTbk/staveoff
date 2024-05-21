@@ -10,20 +10,17 @@
 (def input-callback (fn [ev]
                       (set! input (numb.input/add-input input ev))))
 
-(def canvas nil)
-(def canvas-ctx nil)
-
-(defn get-canvas-width [] (.-width (.getBoundingClientRect canvas)))
-(defn get-canvas-height [] (.-height (.getBoundingClientRect canvas)))
+(defn get-canvas-width [] (.-width (.getBoundingClientRect numb.render/canvas)))
+(defn get-canvas-height [] (.-height (.getBoundingClientRect numb.render/canvas)))
 
 (defn resize-callback []
-  (.setAttribute canvas "width" (get-canvas-width))
-  (.setAttribute canvas "height" (get-canvas-height)))
+  (.setAttribute numb.render/canvas "width" (get-canvas-width))
+  (.setAttribute numb.render/canvas "height" (get-canvas-height)))
 
 
 (def mousemove-previous-pos nil)
 (def mousemove-motion nil)
-(defn register-event-listeners! []
+(defn register-event-listeners! [canvas]
   (let [mouse-pos (fn [ev] [(.-offsetX ev) (.-offsetY ev)])
         mousemove-pos (fn [ev]
                         (let [pos (mouse-pos ev)]
@@ -84,15 +81,15 @@
                    (set! input (numb.input/update-input-state-post-tick input))
                    (let [draw-cmds (draw-callback)]
                      (doseq [cmd draw-cmds]
-                       (numb.render/render-draw-command! canvas-ctx cmd)))))
+                       (numb.render/render-draw-command! numb.render/canvas-ctx cmd)))))
                (update-loop! timestamp))))]
     (update-loop! 0)))
 
 
 (defn initialize! []
-  (set! canvas (.getElementById js/document "canvas"))
-  (set! canvas-ctx (.getContext canvas "2d"))
-  (register-event-listeners!)
+  (set! numb.render/canvas (.getElementById js/document "canvas"))
+  (set! numb.render/canvas-ctx (.getContext numb.render/canvas "2d"))
+  (register-event-listeners! numb.render/canvas)
   (start-update-loop!))
 
 

@@ -1,6 +1,10 @@
 (ns numb.render)
 
 
+(defonce canvas nil)
+(defonce canvas-ctx nil)
+
+
 (defn render-rect! [canvas-ctx rect fill? stroke?]
   (let [{[x y] :pos [w h] :size} rect]
     (when fill?
@@ -40,3 +44,17 @@
       :rect (render-rect! canvas-ctx cmd fill? stroke?)
       :text (render-text! canvas-ctx cmd fill? stroke?)
       nil)))
+
+
+
+(defn compute-text-rect! [text font pos]
+  (set! (.-font canvas-ctx) font)
+  (let [metrics (.measureText canvas-ctx text)
+        descent (.-actualBoundingBoxDescent metrics)
+        ascent (.-actualBoundingBoxAscent metrics)
+        bb-left (.-actualBoundingBoxLeft metrics)
+        w (+ bb-left (.-actualBoundingBoxRight metrics))
+        h (+ ascent descent)
+        extra-padding-bottom 1
+        text-pos-offset [bb-left (- ascent extra-padding-bottom)]]
+    {:pos pos :size [w h] :text-pos-offset text-pos-offset}))

@@ -43,6 +43,6 @@
 ;; x Game begins moment
 ;; - Gameplay loop
 ;; - Pause menu?
-;; - Win/loss condition
-;; - Victory screen, Game over screen (tells you *why* you lost)
+;; - Win / x loss condition
+;; - Victory screen, x Game over screen (tells you *why* you lost)
 ;; Establish proper play area bounds, design the onslaught with it in mind.

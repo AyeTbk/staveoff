@@ -1,9 +1,10 @@
 (ns staveoff.gameobj
   (:require [numb.prelude :as numb]
             [numb.time :refer [make-tween tick-tween]]
+            [numb.render :refer [compute-text-rect!]]
             [numb.math :refer [clamp ease-out ease-in-ease-out
                                v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
-                               decompose-rect]]
+                               decompose-rect rect-grow-centered rect-contain?]]
             [clojure.math :refer [signum]]))
 
 
@@ -232,3 +233,61 @@
 (defmethod on-collision :brick
   [_ _]
   nil)
+
+
+;; UI Button
+
+(def button-font "32px sans-serif")
+
+(defn make-button [pos text tag]
+  {:kind :button
+   :pos pos
+   :text text
+   :font button-font
+   :tags #{tag}
+   :ui-state nil})
+
+(defn tagged-with? [obj tag]
+  (contains? (:tags obj) tag))
+
+(defn hovered? [button]
+  (= (:ui-state button) :hovered))
+
+(defn down? [button]
+  (= (:ui-state button) :down))
+
+(defn clicked? [button]
+  (= (:ui-state button) :clicked))
+
+;; FIXME the logic of this is copy pasted from the logic of draw-obj, DRY plz.
+(defn compute-button-bounding-rect [button]
+  (let [{pos :pos size :size} (compute-text-rect! (:text button) (:font button) (:pos button))
+        {rect-pos :pos rect-size :size} (rect-grow-centered {:pos pos :size size} 50 20)]
+    {:pos rect-pos :size rect-size}))
+
+(defmethod tick-obj :button
+  [self _resources input _dt]
+  (let [rect (compute-button-bounding-rect self)
+        is-hovered (rect-contain? rect (-> input :mouse :pos))
+        is-down (and is-hovered (-> input :mouse :down (contains? :left)))
+        is-clicked (and is-hovered (not is-down) (-> input :mouse :just-released (contains? :left)))]
+
+
+    (cond
+      is-clicked (assoc self :ui-state :clicked)
+      is-down (assoc self :ui-state :down)
+      is-hovered (assoc self :ui-state :hovered)
+      :else (assoc self :ui-state nil))))
+
+(defmethod draw-obj :button
+  [self]
+  (let [{pos :pos size :size text-pos-offset :text-pos-offset} (compute-text-rect! (:text self) (:font self) (:pos self))
+        {rect-pos :pos rect-size :size} (rect-grow-centered {:pos pos :size size} 50 20)
+        text-pos (v+ pos text-pos-offset)
+        color (cond
+                (down? self) "#222"
+                (hovered? self) "#555"
+                :else "#333")]
+    [{:kind :rect :pos rect-pos :size rect-size :fill color :stroke "lightgrey"}
+     {:kind :text :pos text-pos :text (:text self) :font (:font self) :fill "white"}]))
+ 
