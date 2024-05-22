@@ -19,8 +19,8 @@ Brick ideas:
 - ...?
 
 Buffs ideas:
-- Classic power ups falling from destroyed bricks?
-- XP + levels or buff items (survivor like)?
-- Recall the ball?
-- ...?
-
+- Upgrade shop (currency == destroyed brick)
+- Faster balls.
+- More balls.
+- More Health.
+- Gun.

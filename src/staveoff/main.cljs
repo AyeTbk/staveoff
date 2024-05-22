@@ -1,14 +1,11 @@
 (ns staveoff.main
   (:require [numb.prelude :as numb]
+            [staveoff.state :refer [mgrs gameobjs resources]]
             [staveoff.manager :refer [tick-mgr draw-mgr make-game-manager make-brick-manager]]
             [staveoff.gameobj :refer [cleanup-gameobjs
                                       tick-obj draw-obj]]
             [staveoff.physics :refer [tick-physics]]))
 
-
-(defonce mgrs [])
-(defonce gameobjs [])
-(defonce resources {})
 
 
 (numb/run-game!

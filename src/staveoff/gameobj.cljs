@@ -5,6 +5,7 @@
             [numb.math :refer [clamp ease-out ease-in-ease-out
                                v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
                                decompose-rect rect-grow-centered rect-contain?]]
+            [staveoff.state :refer [ball-paddle-bounce-accel descent-animation-duration]]
             [clojure.math :refer [signum]]))
 
 
@@ -164,8 +165,6 @@
         ball (-> ball (assoc :vel reflected-vel) (assoc :pos new-pos))]
     ball))
 
-(defonce ball-paddle-bounce-accel 1.015)
-
 (defn ball-bounce-on-paddle [ball paddle]
   (let [true-hit-normal (ball-hit-normal ball paddle)
         paddle-to-ball-dir (dir-from-to paddle ball)
@@ -204,8 +203,6 @@
 
 
 ;; Brick
-
-(defonce descent-animation-duration 0.25)
 
 (defn make-brick [pos]
   {:kind :brick
@@ -271,8 +268,6 @@
         is-hovered (rect-contain? rect (-> input :mouse :pos))
         is-down (and is-hovered (-> input :mouse :down (contains? :left)))
         is-clicked (and is-hovered (not is-down) (-> input :mouse :just-released (contains? :left)))]
-
-
     (cond
       is-clicked (assoc self :ui-state :clicked)
       is-down (assoc self :ui-state :down)

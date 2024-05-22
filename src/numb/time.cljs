@@ -23,7 +23,7 @@
                         elapsed)
           new-timer (assoc timer :elapsed new-elapsed)
           triggered (if (= trigger-count 0)
-                      nil
+                      false
                       trigger-count)]
       [new-timer triggered])))
 

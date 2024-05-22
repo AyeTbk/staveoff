@@ -2,10 +2,11 @@
   (:require
    [numb.math :refer [get-y]]
    [numb.time :refer [make-timer tick-timer]]
+   [numb.prelude :as numb]
+   [staveoff.state :refer [descent-request-count descent-animation-duration
+                           automatic-descent-active automatic-descent-delay]]
    [staveoff.gameobj :refer [make-paddle make-ball make-brick tagged-with?
-                             descent-animation-duration
-                             make-button clicked?]]
-   [numb.prelude :as numb]))
+                             make-button clicked?]]))
 
 
 ;; Return a vector of updated [mgr gameobjs resources].
@@ -17,10 +18,6 @@
 (defmethod draw-mgr :default [_ _ _]
   [])
 
-
-(defonce automatic-descent-active false)
-(defonce automatic-descent-delay 0.5)
-(defonce descent-request-count 0)
 
 
 ;; Game manager
@@ -35,10 +32,12 @@
 (defmethod tick-mgr :game-manager
   [self gameobjs resources _input dt]
   (case (:game-state resources)
+
     nil
     (let [new-gameobjs [(make-button [300 330] "Start!" :btn-start)]
           new-resources (assoc resources :game-state :main-menu)]
       [self new-gameobjs new-resources])
+
     :main-menu
     (let [should-start-game (some #(and (tagged-with? % :btn-start) (clicked? %)) gameobjs)]
       (if should-start-game
@@ -48,12 +47,14 @@
           (set! automatic-descent-active true)
           [self new-gameobjs new-resources])
         [self gameobjs resources]))
+
     :game-start
     (if (= descent-request-count 0)
       (let [new-resources (assoc resources :game-state :game)
             new-gameobjs (vec (concat gameobjs [(make-ball)]))]
         [self new-gameobjs new-resources])
       [self gameobjs resources])
+
     :game
     (let [paddle-exists (true?
                          (some #(= (:kind %) :paddle)
@@ -72,6 +73,7 @@
       (when game-over?
         (set! automatic-descent-active false))
       [self gameobjs new-resources])
+
     :game-over-start
     (let [[new-timer animation-is-over] (tick-timer (:game-over-animation-timer resources) dt)
           new-resources (cond-> resources
@@ -80,12 +82,14 @@
           new-gameobjs (cond-> gameobjs
                          animation-is-over (conj (make-button [290 330] "Try again" :btn-restart)))]
       [self new-gameobjs new-resources])
+
     :game-over
     (let [should-restart-game (some #(and (tagged-with? % :btn-restart) (clicked? %)) gameobjs)
           new-resources (if should-restart-game
                           (assoc resources :game-state nil)
                           resources)]
       [self gameobjs new-resources])
+
     ;else
     [self gameobjs resources]))
 
