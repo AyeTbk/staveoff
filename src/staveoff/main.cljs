@@ -1,9 +1,10 @@
 (ns staveoff.main
   (:require [numb.prelude :as numb]
-            [staveoff.state :refer [mgrs gameobjs resources]]
-            [staveoff.manager :refer [tick-mgr draw-mgr make-game-manager make-brick-manager]]
-            [staveoff.gameobj :refer [cleanup-gameobjs
-                                      tick-obj draw-obj]]
+            [numb.math :refer [v-]]
+            [staveoff.state :refer [mgrs gameobjs resources bounds-rect ui-width]]
+            [staveoff.manager :refer [tick-mgr draw-mgr
+                                      make-game-manager make-brick-manager make-upgrade-manager]]
+            [staveoff.gameobj :refer [cleanup-gameobjs tick-obj draw-obj]]
             [staveoff.physics :refer [tick-physics]]))
 
 
@@ -11,8 +12,11 @@
 (numb/run-game!
  :init
  (fn []
-   (set! mgrs [(make-game-manager) (make-brick-manager)])
-   (set! gameobjs []))
+   (set! mgrs [(make-game-manager) (make-brick-manager) (make-upgrade-manager)])
+   (set! gameobjs [])
+   (set! bounds-rect (let [size (v- (numb/canvas-size) [ui-width 0])
+                           pos [ui-width 0]]
+                       {:pos pos :size size})))
 
  :tick
  (fn [input dt]
@@ -42,4 +46,6 @@
 ;; - Pause menu?
 ;; - Win / x loss condition
 ;; - Victory screen, x Game over screen (tells you *why* you lost)
+;; vvvv THIS vvvvv
 ;; Establish proper play area bounds, design the onslaught with it in mind.
+;; Make the Upgrade shop / UI

@@ -1,12 +1,11 @@
 (ns staveoff.gameobj
-  (:require [numb.prelude :as numb]
+  (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration]]
             [numb.time :refer [make-tween tick-tween]]
             [numb.render :refer [compute-text-rect!]]
             [numb.math :refer [clamp ease-out ease-in-ease-out
                                v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
                                decompose-rect rect-grow-centered rect-contain?]]
-            [staveoff.state :refer [ball-paddle-bounce-accel descent-animation-duration]]
-            [clojure.math :refer [signum]]))
+            [clojure.math :refer [signum floor]]))
 
 
 (defn cleanup-gameobjs [gameobjs]
@@ -36,10 +35,10 @@
 ;; Paddle
 
 (defn compute-paddle-target-y []
-  (-> (numb/canvas-size) get-y (- 40)))
+  (-> (:size bounds-rect) get-y (- 40)))
 
 (defn compute-paddle-start-y []
-  (-> (numb/canvas-size) get-y))
+  (-> (:size bounds-rect) get-y))
 
 (defn make-paddle []
   {:kind :paddle
@@ -51,9 +50,10 @@
 (defmethod tick-obj :paddle
   [self _resources input dt]
   (let [rect (decompose-rect self)
+        bounds (decompose-rect bounds-rect)
         half-width (-> rect :width (/ 2))
         mouse-x (-> input :mouse :pos get-x)
-        target-center-x (clamp mouse-x half-width (-> (numb/canvas-size) get-x (- half-width)))
+        target-center-x (clamp mouse-x (+ (:left bounds) half-width) (- (:right bounds) half-width))
         new-left (- target-center-x half-width)
         [new-spawn-tween new-top _] (tick-tween (:spawn-tween self) dt)]
     (-> self
@@ -80,21 +80,21 @@
 
 (defn make-ball []
   (let [size 10
-        canvas-x (get-x (numb/canvas-size))
-        pos-x (/ (+ canvas-x size) 2)
+        pos-x (-> bounds-rect decompose-rect :center get-x (- (/ size 2)))
         pos-y (- (compute-paddle-target-y) 30)]
     {:kind :ball
      :pos [pos-x pos-y]
      :size [size size]
-     :vel [0 -300]
+     :vel (v* [0 -1] ball-speed)
      :phys-tags #{:collider}}))
 
-(defn keep-in-bounds [ball [width height]]
+(defn keep-in-bounds [ball bounds]
   (let [rect (decompose-rect ball)
-        is-outside-left (< (:left rect) 0)
-        is-outside-right (> (:right rect) width)
-        is-outside-top (< (:top rect) 0)
-        is-outside-bottom (> (:bottom rect) height)
+        bounds (decompose-rect bounds)
+        is-outside-left (< (:left rect) (:left bounds))
+        is-outside-right (> (:right rect) (:right bounds))
+        is-outside-top (< (:top rect) (:top bounds))
+        is-outside-bottom (> (:bottom rect) (:bottom bounds))
         new-vel-x (if (or is-outside-left is-outside-right)
                     (- (-> ball :vel get-x))
                     (-> ball :vel get-x))
@@ -102,12 +102,12 @@
                     (- (-> ball :vel get-y))
                     (-> ball :vel get-y))
         new-left (cond
-                   is-outside-left 0
-                   is-outside-right (- width (:width rect))
+                   is-outside-left (:left bounds)
+                   is-outside-right (- (:right bounds) (:width rect))
                    :else (:left rect))
         new-top (cond
-                  is-outside-top 0
-                  is-outside-bottom (- height (:height rect))
+                  is-outside-top (:top bounds)
+                  is-outside-bottom (- (:bottom bounds) (:height rect))
                   :else (:top rect))]
     (-> ball
         (assoc :vel [new-vel-x new-vel-y])
@@ -175,20 +175,20 @@
         hit-normal (if hit-top-of-paddle
                      (v-normalize (v+ true-hit-normal (v* paddle-to-ball-dir control-factor)))
                      true-hit-normal)
-        reflected-vel (if hit-top-of-paddle
-                        (v* hit-normal (-> ball :vel v-norm))
-                        (v-reflect (:vel ball) hit-normal))
-        accelerated-vel (v* reflected-vel ball-paddle-bounce-accel)
+        reflected-vel-dir (if hit-top-of-paddle
+                            hit-normal
+                            (v-reflect (v-normalize (:vel ball)) hit-normal))
+        reflected-vel (v* reflected-vel-dir ball-speed)
         hit-depth  (ball-hit-depth ball paddle)
         new-pos (v- (:pos ball) hit-depth)
-        ball (-> ball (assoc :vel accelerated-vel) (assoc :pos new-pos))]
+        ball (-> ball (assoc :vel reflected-vel) (assoc :pos new-pos))]
     ball))
 
 (defmethod tick-obj :ball
   [self _resources _input dt]
   (-> self
       (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
-      (keep-in-bounds (numb/canvas-size))))
+      (keep-in-bounds bounds-rect)))
 
 (defmethod draw-obj :ball
   [self]
@@ -242,6 +242,8 @@
    :text text
    :font button-font
    :tags #{tag}
+   :h-padding 50
+   :v-padding 20
    :ui-state nil})
 
 (defn tagged-with? [obj tag]
@@ -255,6 +257,9 @@
 
 (defn clicked? [button]
   (= (:ui-state button) :clicked))
+
+(defn button-clicked? [button-tag gameobjs]
+  (some #(and (tagged-with? % button-tag) (clicked? %)) gameobjs))
 
 ;; FIXME the logic of this is copy pasted from the logic of draw-obj, DRY plz.
 (defn compute-button-bounding-rect [button]
@@ -277,7 +282,7 @@
 (defmethod draw-obj :button
   [self]
   (let [{pos :pos size :size text-pos-offset :text-pos-offset} (compute-text-rect! (:text self) (:font self) (:pos self))
-        {rect-pos :pos rect-size :size} (rect-grow-centered {:pos pos :size size} 50 20)
+        {rect-pos :pos rect-size :size} (rect-grow-centered {:pos pos :size size} (:h-padding self) (:v-padding self))
         text-pos (v+ pos text-pos-offset)
         color (cond
                 (down? self) "#222"
@@ -285,4 +290,38 @@
                 :else "#333")]
     [{:kind :rect :pos rect-pos :size rect-size :fill color :stroke "lightgrey"}
      {:kind :text :pos text-pos :text (:text self) :font (:font self) :fill "white"}]))
- 
+
+
+
+;; Game UI
+
+(defn make-ui-timer []
+  {:kind :ui-timer
+   :elapsed 0})
+
+(defmethod tick-obj :ui-timer
+  [self resources _input dt]
+  (let [should-tick (= (:game-state resources) :game)]
+    (cond-> self
+      should-tick (update :elapsed + dt))))
+
+(defmethod draw-obj :ui-timer
+  [self]
+  (let [seconds (floor (rem (:elapsed self) 60))
+        minutes (quot (:elapsed self) 60)
+        ss (if (< seconds 10)
+             (str "0" seconds)
+             (str seconds))
+        mm (if (< minutes 10)
+             (str "0" minutes)
+             (str minutes))
+        text (str mm ":" ss)]
+    [{:kind :text :text text :pos [80 60] :font "36px sans-serif" :line-width 1 :fill "white" :stroke "grey"}]))
+
+
+
+(defn make-upgrade-button [pos text tag]
+  (-> (make-button pos text tag)
+      (assoc :font "16px sans-serif")
+      (assoc :h-padding 20)
+      (update :tags conj :upgrade-button)))

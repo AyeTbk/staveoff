@@ -1,12 +1,17 @@
 (ns staveoff.manager
   (:require
-   [numb.math :refer [get-y]]
+   [numb.math :refer [get-x get-y decompose-rect]]
    [numb.time :refer [make-timer tick-timer]]
    [numb.prelude :as numb]
-   [staveoff.state :refer [descent-request-count descent-animation-duration
-                           automatic-descent-active automatic-descent-delay]]
-   [staveoff.gameobj :refer [make-paddle make-ball make-brick tagged-with?
-                             make-button clicked?]]))
+   [staveoff.state :refer [reset-state!
+                           descent-request-count descent-animation-duration
+                           automatic-descent-active automatic-descent-delay
+                           game-over-animation-duration
+                           bounds-rect brick-width brick-height brick-margin
+                           ball-speed ball-speed-upgrade-increment]]
+   [staveoff.gameobj :refer [make-paddle make-ball make-brick
+                             make-ui-timer make-upgrade-button
+                             make-button button-clicked?]]))
 
 
 ;; Return a vector of updated [mgr gameobjs resources].
@@ -22,9 +27,9 @@
 
 ;; Game manager
 
-(def menu-text {:kind :text :pos [0 0] :text "" :font "32px sans-serif" :fill "white"})
-(def menu-title (merge menu-text {:font "56px sans-serif"}))
-(def menu-small-text (merge menu-text {:font "18px sans-serif"}))
+(def menu-text {:kind :text :pos [0 0] :text "" :font "32px sans-serif" :fill "white" :stroke "black"  :line-width 0.5})
+(def menu-title (merge menu-text {:font "56px sans-serif" :line-width 2}))
+(def menu-small-text (merge menu-text {:font "18px sans-serif" :stroke nil}))
 
 (defn make-game-manager []
   {:kind :game-manager})
@@ -36,10 +41,11 @@
     nil
     (let [new-gameobjs [(make-button [300 330] "Start!" :btn-start)]
           new-resources (assoc resources :game-state :main-menu)]
+      (reset-state!)
       [self new-gameobjs new-resources])
 
     :main-menu
-    (let [should-start-game (some #(and (tagged-with? % :btn-start) (clicked? %)) gameobjs)]
+    (let [should-start-game (button-clicked? :btn-start gameobjs)]
       (if should-start-game
         (let [new-gameobjs [(make-paddle)]
               new-resources {:game-state :game-start}]
@@ -51,7 +57,7 @@
     :game-start
     (if (= descent-request-count 0)
       (let [new-resources (assoc resources :game-state :game)
-            new-gameobjs (vec (concat gameobjs [(make-ball)]))]
+            new-gameobjs (vec (concat gameobjs [(make-ball) (make-ui-timer)]))]
         [self new-gameobjs new-resources])
       [self gameobjs resources])
 
@@ -68,7 +74,7 @@
           new-resources (if game-over?
                           (-> resources
                               (assoc :game-state :game-over-start)
-                              (assoc :game-over-animation-timer (make-timer 2)))
+                              (assoc :game-over-animation-timer (make-timer game-over-animation-duration)))
                           resources)]
       (when game-over?
         (set! automatic-descent-active false))
@@ -84,7 +90,7 @@
       [self new-gameobjs new-resources])
 
     :game-over
-    (let [should-restart-game (some #(and (tagged-with? % :btn-restart) (clicked? %)) gameobjs)
+    (let [should-restart-game (button-clicked? :btn-restart gameobjs)
           new-resources (if should-restart-game
                           (assoc resources :game-state nil)
                           resources)]
@@ -95,31 +101,87 @@
 
 (defmethod draw-mgr :game-manager
   [_ _ resources]
+  (let [bounds (merge bounds-rect {:kind :rect :fill nil :stroke "grey" :line-width 1})]
+    (case (:game-state resources)
+      :main-menu
+      [(merge menu-title {:pos [150 100] :text "Stave Off"})
+       (merge menu-small-text {:pos [150 150] :text "Survive until the end."})
+       (merge menu-small-text {:pos [150 180] :text "The only threat is the onslaught of bricks."})
+       (merge menu-small-text {:pos [150 230] :text "If a brick hits your paddle, it's game over."})
+       (merge menu-small-text {:pos [150 260] :text "If a brick gets past your paddle, it's game over."})]
+      :game-start
+      [bounds]
+      :game
+      [bounds]
+      :game-over-start
+      [bounds]
+      :game-over
+      [bounds
+       (merge menu-title {:pos [220 220] :text "Game over"})]
+      ;else
+      [])))
+
+
+
+;; Upgrade manager
+
+(defn make-upgrade-manager []
+  {:kind :upgrade-manager})
+
+(defmethod tick-mgr :upgrade-manager
+  [self gameobjs resources _input _dt]
+  (let [create-upgrade-buttons (fn []
+                                 [(make-upgrade-button [30 310] "Faster ball" :btn-faster-balls)
+                                  (make-upgrade-button [30 360] "More health" :btn-more-health)
+                                  (make-upgrade-button [30 410] "More shots" :btn-more-shots)
+                                  (make-upgrade-button [30 460] "More balls" :btn-more-balls)])
+        destroy-upgrade-buttons (fn [gameobjs]
+                                  (vec
+                                   (filter #(not (contains? (:tags %) :upgrade-button)) gameobjs)))]
+    (case (:game-state resources)
+      :game
+      (let [new-gameobjs (vec (concat (destroy-upgrade-buttons gameobjs) (create-upgrade-buttons)))]
+
+        (cond
+          (button-clicked? :btn-faster-balls gameobjs)
+          (do
+            (set! ball-speed (+ ball-speed ball-speed-upgrade-increment))
+            [self new-gameobjs resources])
+
+          (button-clicked? :btn-more-balls gameobjs)
+          (let [new-new-gameobjs (vec (concat new-gameobjs [(make-ball)]))]
+            [self new-new-gameobjs resources])
+
+          :else
+          [self new-gameobjs resources]))
+
+      :game-over-start
+      (let [new-gameobjs (destroy-upgrade-buttons gameobjs)]
+        [self new-gameobjs resources])
+      ;else
+      [self gameobjs resources])))
+
+(defmethod draw-mgr :upgrade-manager
+  [_ _ resources]
   (case (:game-state resources)
-    :main-menu
-    [(merge menu-title {:pos [150 100] :text "Stave Off"})
-     (merge menu-small-text {:pos [150 150] :text "Survive until the end."})
-     (merge menu-small-text {:pos [150 180] :text "The only threat is the onslaught of bricks."})
-     (merge menu-small-text {:pos [150 230] :text "If a brick hits your paddle, it's game over."})
-     (merge menu-small-text {:pos [150 260] :text "If a brick gets past your paddle, it's game over."})]
-    :game-start
-    []
-    :game-over
-    [(merge menu-title {:pos [220 220] :text "Game over"})]
+    :game
+    [(merge menu-text {:pos [20 270] :text "Upgrades"})]
     ;else
     []))
+
 
 
 ;; Brick manager
 
 (defn make-brick-manager []
   {:kind :brick-manager
-   :automatic-descent-timer (make-timer 0 :cyclic)
+   :automatic-descent-timer (make-timer descent-animation-duration :cyclic)
    :requested-descent-timer (make-timer 0 :cyclic)})
 
 (defmethod tick-mgr :brick-manager
   [self gameobjs resources _input dt]
-  (if (contains? #{:game-start :game} (:game-state resources))
+  (cond
+    (contains? #{:game-start :game} (:game-state resources))
     (let [[should-tick-auto-timer should-tick-requ-timer] (if (> descent-request-count 0)
                                                             [false true]
                                                             [automatic-descent-active false])
@@ -144,8 +206,14 @@
                        (assoc :requested-descent-timer new-requ-timer))
           descent-triggered (or auto-descent-triggered requ-descent-triggered)
           spawned-bricks (if descent-triggered
-                           (vec (for [x (range 10)]
-                                  (make-brick [(+ (* x (+ 45 5)) 120) -25])))
+                           (vec
+                            (for [i (range 7)]
+                              (let [bounds (decompose-rect bounds-rect)
+                                    half-brick-width (/ brick-width 2)
+                                    x (- i 3)
+                                    x (- (+ (-> bounds :center get-x) (* x (+ brick-width brick-margin))) half-brick-width)
+                                    y (- (+ brick-height brick-margin))]
+                                (make-brick [x y]))))
                            [])
           new-gameobjs (vec (concat gameobjs spawned-bricks))
           new-resources (if descent-triggered
@@ -154,5 +222,10 @@
       (when requ-descent-triggered
         (set! descent-request-count (- descent-request-count 1)))
       [new-self new-gameobjs new-resources])
-    ;else
+
+    (contains? #{:game-over-start} (:game-state resources))
+    (let [new-resources (assoc resources :descend-i-command-you! true)] ; Animate all the bricks down on game-over, looks cool.
+      [self gameobjs new-resources])
+
+    :else
     [self gameobjs resources]))
