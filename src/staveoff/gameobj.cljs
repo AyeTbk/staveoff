@@ -1,5 +1,5 @@
 (ns staveoff.gameobj
-  (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration]]
+  (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration game-time]]
             [numb.time :refer [make-tween tick-tween]]
             [numb.render :refer [compute-text-rect!]]
             [numb.math :refer [clamp ease-out ease-in-ease-out
@@ -296,19 +296,16 @@
 ;; Game UI
 
 (defn make-ui-timer []
-  {:kind :ui-timer
-   :elapsed 0})
+  {:kind :ui-timer})
 
 (defmethod tick-obj :ui-timer
-  [self resources _input dt]
-  (let [should-tick (= (:game-state resources) :game)]
-    (cond-> self
-      should-tick (update :elapsed + dt))))
+  [self _resources _input _dt]
+  self)
 
 (defmethod draw-obj :ui-timer
-  [self]
-  (let [seconds (floor (rem (:elapsed self) 60))
-        minutes (quot (:elapsed self) 60)
+  [_]
+  (let [seconds (floor (rem game-time 60))
+        minutes (quot game-time 60)
         ss (if (< seconds 10)
              (str "0" seconds)
              (str seconds))

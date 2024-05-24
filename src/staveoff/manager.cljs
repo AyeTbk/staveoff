@@ -1,13 +1,15 @@
 (ns staveoff.manager
   (:require
-   [numb.math :refer [get-x get-y decompose-rect]]
+   [numb.math :refer [get-x get-y decompose-rect clamp lerp]]
    [numb.time :refer [make-timer tick-timer]]
    [numb.prelude :as numb]
    [staveoff.state :refer [reset-state!
                            descent-request-count descent-animation-duration
                            automatic-descent-active automatic-descent-delay
-                           game-over-animation-duration
+                           game-over-animation-duration game-win-animation-duration
                            bounds-rect brick-width brick-height brick-margin
+                           expected-game-duration
+                           game-time automatic-descent-delay-max automatic-descent-delay-min
                            ball-speed ball-speed-upgrade-increment]]
    [staveoff.gameobj :refer [make-paddle make-ball make-brick
                              make-ui-timer make-upgrade-button
@@ -71,11 +73,22 @@
                           (some #(and (= (:kind %) :brick) (>= (-> % :pos get-y) end-of-screen))
                                 gameobjs))
           game-over? (or brick-got-past (not paddle-exists))
-          new-resources (if game-over?
-                          (-> resources
-                              (assoc :game-state :game-over-start)
-                              (assoc :game-over-animation-timer (make-timer game-over-animation-duration)))
-                          resources)]
+          time-is-up (> game-time expected-game-duration)
+          there-remains-bricks (some #(= (:kind %) :brick) gameobjs)
+          game-won? (and time-is-up (not there-remains-bricks))
+          new-resources (cond-> resources
+                          game-over? (->
+                                      (assoc :game-state :game-over-start)
+                                      (assoc :game-over-animation-timer (make-timer game-over-animation-duration)))
+                          game-won? (->
+                                     (assoc :game-state :game-win-start)
+                                     (assoc :game-win-animation-timer (make-timer game-win-animation-duration))))
+          new-automatic-descent-delay (lerp
+                                       automatic-descent-delay-max
+                                       automatic-descent-delay-min
+                                       (clamp (/ game-time expected-game-duration) 0 1))]
+      (set! game-time (+ game-time dt))
+      (set! automatic-descent-delay new-automatic-descent-delay)
       (when game-over?
         (set! automatic-descent-active false))
       [self gameobjs new-resources])
@@ -90,6 +103,22 @@
       [self new-gameobjs new-resources])
 
     :game-over
+    (let [should-restart-game (button-clicked? :btn-restart gameobjs)
+          new-resources (if should-restart-game
+                          (assoc resources :game-state nil)
+                          resources)]
+      [self gameobjs new-resources])
+
+    :game-win-start
+    (let [[new-timer animation-is-over] (tick-timer (:game-win-animation-timer resources) dt)
+          new-resources (cond-> resources
+                          true (assoc :game-win-animation-timer new-timer)
+                          animation-is-over (assoc :game-state :game-win))
+          new-gameobjs (cond-> gameobjs
+                         animation-is-over (conj (make-button [290 330] "Play again" :btn-restart)))]
+      [self new-gameobjs new-resources])
+
+    :game-win
     (let [should-restart-game (button-clicked? :btn-restart gameobjs)
           new-resources (if should-restart-game
                           (assoc resources :game-state nil)
@@ -118,6 +147,11 @@
       :game-over
       [bounds
        (merge menu-title {:pos [220 220] :text "Game over"})]
+      :game-win-start
+      [bounds]
+      :game-win
+      [bounds
+       (merge menu-title {:pos [220 220] :text "You win!"})]
       ;else
       [])))
 
@@ -158,6 +192,10 @@
       :game-over-start
       (let [new-gameobjs (destroy-upgrade-buttons gameobjs)]
         [self new-gameobjs resources])
+      :game-win-start
+      (let [new-gameobjs (destroy-upgrade-buttons gameobjs)]
+        [self new-gameobjs resources])
+
       ;else
       [self gameobjs resources])))
 
@@ -205,7 +243,8 @@
                        (assoc :automatic-descent-timer new-auto-timer)
                        (assoc :requested-descent-timer new-requ-timer))
           descent-triggered (or auto-descent-triggered requ-descent-triggered)
-          spawned-bricks (if descent-triggered
+          time-is-up (> game-time expected-game-duration)
+          spawned-bricks (if (and descent-triggered (not time-is-up))
                            (vec
                             (for [i (range 7)]
                               (let [bounds (decompose-rect bounds-rect)
