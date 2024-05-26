@@ -14,7 +14,7 @@
 ;; (defn get-canvas-width [] (.-width (.getBoundingClientRect numb.render/canvas)))
 (defn get-canvas-width []
   ;; HACK responsive design
-  700)
+  1000)
 ;; (defn get-canvas-height [] (.-height (.getBoundingClientRect numb.render/canvas)))
 (defn get-canvas-height []
   ;; HACK responsive design
@@ -32,7 +32,7 @@
                     (let [raw-pos [(.-offsetX ev) (.-offsetY ev)]
                           raw-canvas-size [(-> canvas .getBoundingClientRect .-width)
                                            (-> canvas .getBoundingClientRect .-height)]
-                          canvas-size [700 500]
+                          canvas-size [1000 500]
                           pos (v* (vdiv raw-pos raw-canvas-size) canvas-size)]
                       pos))
         mousemove-pos (fn [ev]

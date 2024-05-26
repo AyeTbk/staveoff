@@ -14,7 +14,9 @@
  (fn []
    (set! mgrs [(make-game-manager) (make-brick-manager) (make-upgrade-manager)])
    (set! gameobjs [])
-   (set! bounds-rect (let [size (v- (numb/canvas-size) [ui-width 0])
+   (set! bounds-rect (let [size (v- (v- (numb/canvas-size) [ui-width 0])
+                                    ;; HACK itch is silly and my framework isnt prepared for this
+                                    [300 0])
                            pos [ui-width 0]]
                        {:pos pos :size size})))
 
