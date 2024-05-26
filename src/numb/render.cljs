@@ -22,8 +22,11 @@
       (.strokeText canvas-ctx text x y))))
 
 (defn clear! [canvas-ctx]
-  (let [width (-> canvas-ctx .-canvas .getBoundingClientRect .-width)
-        height (-> canvas-ctx .-canvas .getBoundingClientRect .-height)]
+  (let [;; HACK Easy way to clear the screen: 10000x10000 pixel rectangle.
+        ;;width (-> canvas-ctx .-canvas .getBoundingClientRect .-width)
+        ;;height (-> canvas-ctx .-canvas .getBoundingClientRect .-height)
+        width 10000
+        height 10000]
     (.clearRect canvas-ctx 0 0 width height)))
 
 

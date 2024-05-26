@@ -2,3 +2,5 @@
 .cpcache
 .lsp
 out/
+dist/
+dist.zip

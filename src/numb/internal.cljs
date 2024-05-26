@@ -1,6 +1,7 @@
 (ns numb.internal
   (:require [numb.input]
-            [numb.render]))
+            [numb.render]
+            [numb.math :refer [v* vdiv]]))
 
 
 (def tick-callback (fn [_input _dt]))
@@ -10,8 +11,14 @@
 (def input-callback (fn [ev]
                       (set! input (numb.input/add-input input ev))))
 
-(defn get-canvas-width [] (.-width (.getBoundingClientRect numb.render/canvas)))
-(defn get-canvas-height [] (.-height (.getBoundingClientRect numb.render/canvas)))
+;; (defn get-canvas-width [] (.-width (.getBoundingClientRect numb.render/canvas)))
+(defn get-canvas-width []
+  ;; HACK responsive design
+  700)
+;; (defn get-canvas-height [] (.-height (.getBoundingClientRect numb.render/canvas)))
+(defn get-canvas-height []
+  ;; HACK responsive design
+  500)
 
 (defn resize-callback []
   (.setAttribute numb.render/canvas "width" (get-canvas-width))
@@ -21,7 +28,13 @@
 (def mousemove-previous-pos nil)
 (def mousemove-motion nil)
 (defn register-event-listeners! [canvas]
-  (let [mouse-pos (fn [ev] [(.-offsetX ev) (.-offsetY ev)])
+  (let [mouse-pos (fn [ev]
+                    (let [raw-pos [(.-offsetX ev) (.-offsetY ev)]
+                          raw-canvas-size [(-> canvas .getBoundingClientRect .-width)
+                                           (-> canvas .getBoundingClientRect .-height)]
+                          canvas-size [700 500]
+                          pos (v* (vdiv raw-pos raw-canvas-size) canvas-size)]
+                      pos))
         mousemove-pos (fn [ev]
                         (let [pos (mouse-pos ev)]
                           (when (not= mousemove-previous-pos nil)
@@ -30,7 +43,8 @@
                           pos))]
 
   ;; Resize
-    (.addEventListener js/window "resize" resize-callback)
+    ;; HACK Easy responsive design: dont resize the game and let the canvas be stretched!
+    ;; (.addEventListener js/window "resize" resize-callback)
 
   ;; Input
     (.addEventListener canvas "keydown"

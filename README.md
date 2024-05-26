@@ -13,6 +13,7 @@ Then you can use the targets in the Makefile:
 - `make repl` lauches a browser running the game and starts a repl connected to it.
 - `make release` produces a release build in ./out/main.js.
 - `make serve` launches a local web server that serves the release build.
+- `make dist` produces a release build and packages it in `dist.zip`, ready to be uploaded to itch.
 
 If you are on Windows, you'll have to adapt the commands on your own to get things to work.
 
