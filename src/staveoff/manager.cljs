@@ -73,7 +73,7 @@
           end-of-screen (get-y (numb/canvas-size))
           ;; TODO Do I really want this lose condition?
           brick-got-past (true?
-                          (some #(and (= (:kind %) :brick) (>= (-> % :pos get-y) end-of-screen))
+                          (some #(and (= (:kind %) :brick) (>= (-> % :pos get-y) (- end-of-screen 10)))
                                 gameobjs))
           game-over? (or brick-got-past (not paddle-exists))
           time-is-up (> game-time expected-game-duration)
@@ -141,7 +141,7 @@
     (case (:game-state resources)
       :main-menu
       [(merge menu-title {:pos [150 100] :text "Stave Off"})
-       (merge menu-small-text {:pos [150 150] :text "Survive until the end."})
+       (merge menu-small-text {:pos [150 150] :text "Survive until the end (5 minutes)."})
        (merge menu-small-text {:pos [150 180] :text "The only threat is the onslaught of bricks."})
        (merge menu-small-text {:pos [150 230] :text "If a brick hits your paddle, it's game over."})
        (merge menu-small-text {:pos [150 260] :text "If a brick gets past your paddle, it's game over."})]
@@ -173,9 +173,7 @@
   [self gameobjs resources _input _dt]
   (let [create-upgrade-buttons (fn []
                                  [(make-upgrade-button [30 310] "Faster ball" :btn-faster-balls)
-                                  (make-upgrade-button [30 360] "More health" :btn-more-health)
-                                  (make-upgrade-button [30 410] "More shots" :btn-more-shots)
-                                  (make-upgrade-button [30 460] "More balls" :btn-more-balls)])
+                                  (make-upgrade-button [30 360] "More balls" :btn-more-balls)])
         destroy-upgrade-buttons (fn [gameobjs]
                                   (vec
                                    (filter #(not (contains? (:tags %) :upgrade-button)) gameobjs)))]

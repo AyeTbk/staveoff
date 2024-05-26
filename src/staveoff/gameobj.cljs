@@ -251,10 +251,11 @@
     ball))
 
 (defmethod tick-obj :ball
-  [self _resources _input dt]
-  (-> self
-      (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
-      (keep-in-bounds bounds-rect)))
+  [self resources _input dt]
+  (cond-> self
+    (= (:game-state resources) :game-win) (assoc :vel (v* (:vel self) (- 1.0 (* 0.6 dt))))
+    true (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
+    true (keep-in-bounds bounds-rect)))
 
 (defmethod draw-obj :ball
   [self]
