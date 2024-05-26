@@ -1,9 +1,16 @@
 (ns numb.math
-  (:require [clojure.math :refer [sqrt pow cos PI]]))
+  (:require [clojure.math :refer [sqrt pow cos sin PI to-radians]]))
 
 
 (defn clamp [val min-val max-val]
   (-> val (min max-val) (max min-val)))
+
+(defn randf
+  ([] (rand))
+  ([max] (rand max))
+  ([min max] (let [range (- max min)]
+               (+ (rand range) min))))
+
 
 
 ;; Interpolation
@@ -15,9 +22,14 @@
   (let [eased-t (/ (+ (cos (* PI (+ 1 t))) 1) 2)]
     (lerp from to eased-t)))
 
+(defn ease-in [from to t]
+  (let [eased-t (* t t)]
+    (lerp from to eased-t)))
+
 (defn ease-out [from to t]
   (let [eased-t (- 1 (pow (- t 1) 2))]
     (lerp from to eased-t)))
+
 
 
 ;; Vectors
@@ -47,6 +59,15 @@
     (if (not= norm 0)
       (vdiv v norm)
       [0 0])))
+
+(defn rand-dir
+  ([] (rand-dir 0 360))
+  ([origin range] (let [origin (to-radians origin)
+                        range (to-radians range)
+                        deviation (- (rand range) (/ range 2))
+                        angle (+ origin deviation)]
+                    [(cos angle) (sin angle)])))
+
 
 
 ;; Rects
@@ -79,3 +100,12 @@
     (-> r
         (assoc :pos pos)
         (assoc :size size))))
+
+(defn rect-scale [r scale]
+  (let [decomposed (decompose-rect r)
+        scaled-size (v* (:size r) scale)
+        offset (v* scaled-size 0.5)
+        new-pos (v- (:center decomposed) offset)]
+    (-> r
+        (assoc :pos new-pos)
+        (assoc :size scaled-size))))

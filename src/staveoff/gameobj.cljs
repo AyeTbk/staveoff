@@ -1,10 +1,11 @@
 (ns staveoff.gameobj
-  (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration game-time]]
+  (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration game-time
+                                    pfx-paddle-destroyed pfx-brick-destroyed pfx-brick-attack]]
             [numb.time :refer [make-tween tick-tween]]
             [numb.render :refer [compute-text-rect!]]
             [numb.math :refer [clamp ease-out ease-in-ease-out
                                v+ v- v* vdiv v-dot v-norm v-normalize v-reflect get-x get-y
-                               decompose-rect rect-grow-centered rect-contain?]]
+                               decompose-rect rect-grow-centered rect-scale rect-contain?]]
             [clojure.math :refer [signum floor]]))
 
 
@@ -29,6 +30,71 @@
 
 (defn dist-from-to [from to]
   (v-norm (v- (-> to decompose-rect :center) (-> from decompose-rect :center))))
+
+
+
+;; Particle
+
+(defn make-particle [pos desc]
+  (let [life-span ((:life-span desc))
+        size ((:start-size desc))
+        vel ((:start-vel desc))
+        emits (vec
+               (flatten
+                (for [emit-desc (:emits desc)
+                      :when (some? (:desc emit-desc))]
+                  (let [desc (:desc emit-desc)
+                        count (floor ((:count emit-desc)))
+                        interval (/ (:span emit-desc) count)
+                        start-time (- (:time emit-desc) (/ (:span emit-desc) 2))]
+                    (for [i (range count)]
+                      {:desc desc
+                       :emit-at-time (+ start-time (* i interval))})))))]
+    {:kind :particle
+     :pos pos
+     :size size
+     :life-span life-span
+     :elapsed 0
+     :vel vel
+     :fill-fn (:fill desc)
+     :stroke-fn (:stroke desc)
+     :line-width-fn (:line-width desc)
+     :scale-fn (:scale desc)
+     :gravity-fn (:gravity desc)
+     :emits emits}))
+
+(defn compute-particle-t [particle]
+  (clamp (/ (:elapsed particle) (:life-span particle)) 0 1))
+
+(defmethod tick-obj :particle
+  [self _resources _input dt]
+  (let [ticked-self (update self :elapsed + dt)
+        should-be-destroyed (> (:elapsed ticked-self) (:life-span ticked-self))
+        t (compute-particle-t ticked-self)
+        gravity ((:gravity-fn ticked-self) t)
+        acceled-self (update ticked-self :vel v+ (v* gravity dt))
+        moved-self (update acceled-self :pos v+ (v* (:vel acceled-self) dt))
+        [emitted new-emits] (letfn [(ready-to-be-emitted? [emit] (<= (:emit-at-time emit) t))]
+                              [(take-while ready-to-be-emitted? (:emits moved-self))
+                               (vec (drop-while ready-to-be-emitted? (:emits moved-self)))])
+        new-particles (vec (map #(make-particle (:pos moved-self) (:desc %)) emitted))
+        new-self (assoc moved-self :emits new-emits)
+        gameobjs (if should-be-destroyed
+                   new-particles
+                   (conj new-particles new-self))]
+    gameobjs))
+
+(defmethod draw-obj :particle
+  [self]
+  (let [t (compute-particle-t self)
+        fill ((:fill-fn self) t)
+        stroke ((:stroke-fn self) t)
+        line-width ((:line-width-fn self) t)
+        scale ((:scale-fn self) t)
+        scaled-self (rect-scale self scale)
+        pos (:pos scaled-self)
+        size (:size scaled-self)]
+    [{:kind :rect :pos pos :size size :fill fill :stroke stroke :line-width line-width}]))
 
 
 
@@ -71,7 +137,7 @@
 (defmethod on-collision :paddle
   [self other]
   (if (= (:kind other) :brick)
-    nil
+    [(make-particle (-> self decompose-rect :center) pfx-paddle-destroyed)]
     self))
 
 
@@ -218,18 +284,28 @@
                         (make-tween old-y (+ old-y 25) descent-animation-duration ease-out)
                         (:descent-tween self))
         [descent-tween tweened-y _finished] (tick-tween descent-tween dt)
-        new-pos [old-x tweened-y]]
-    (-> self
-        (assoc :descent-tween descent-tween)
-        (assoc :pos new-pos))))
+        new-pos [old-x tweened-y]
+        should-show-attack-particle (and (-> new-pos get-y (> (:bottom (decompose-rect bounds-rect))))
+                                         (nil? (:has-attacked self)))
+        new-self (cond-> self
+                   true (assoc :descent-tween descent-tween)
+                   true (assoc :pos new-pos)
+                   should-show-attack-particle (assoc :has-attacked true))
+        particle-pos (v+ (-> new-self decompose-rect :center) [0 100])
+        gameobjs (if should-show-attack-particle
+                   [new-self (make-particle particle-pos pfx-brick-attack)]
+                   [new-self])]
+    gameobjs))
 
 (defmethod draw-obj :brick
   [self]
   {:kind :rect :pos (:pos self) :size (:size self) :fill "green" :stroke "darkgreen"})
 
 (defmethod on-collision :brick
-  [_ _]
-  nil)
+  [self _]
+  (let [center (-> self decompose-rect :center)]
+    [(make-particle center pfx-brick-destroyed)]))
+
 
 
 ;; UI Button

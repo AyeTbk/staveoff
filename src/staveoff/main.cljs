@@ -44,8 +44,8 @@
 ;; x Game begins moment
 ;; - Gameplay loop
 ;; - Pause menu?
-;; - Win / x loss condition
-;; - Victory screen, x Game over screen (tells you *why* you lost)
+;; x Win / x loss condition
+;; x Victory screen, x Game over screen (tells you *why* you lost)
 ;; vvvv THIS vvvvv
-;; Establish proper play area bounds, design the onslaught with it in mind.
-;; Make the Upgrade shop / UI
+;; Particle effects system
+;; Available upgrades / upgrade prices / gaining currency

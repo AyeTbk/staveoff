@@ -10,10 +10,13 @@
                            bounds-rect brick-width brick-height brick-margin
                            expected-game-duration
                            game-time automatic-descent-delay-max automatic-descent-delay-min
-                           ball-speed ball-speed-upgrade-increment]]
+                           game-start-descent-request-count
+                           ball-speed ball-speed-upgrade-increment
+                           pfx-firework]]
    [staveoff.gameobj :refer [make-paddle make-ball make-brick
                              make-ui-timer make-upgrade-button
-                             make-button button-clicked?]]))
+                             make-button button-clicked?
+                             make-particle]]))
 
 
 ;; Return a vector of updated [mgr gameobjs resources].
@@ -51,7 +54,7 @@
       (if should-start-game
         (let [new-gameobjs [(make-paddle)]
               new-resources {:game-state :game-start}]
-          (set! descent-request-count 8)
+          (set! descent-request-count (- game-start-descent-request-count 1))
           (set! automatic-descent-active true)
           [self new-gameobjs new-resources])
         [self gameobjs resources]))
@@ -86,12 +89,16 @@
           new-automatic-descent-delay (lerp
                                        automatic-descent-delay-max
                                        automatic-descent-delay-min
-                                       (clamp (/ game-time expected-game-duration) 0 1))]
+                                       (clamp (/ game-time expected-game-duration) 0 1))
+          fireworks-pos (-> bounds-rect decompose-rect (#(vec [(-> % :center get-x) (:bottom %)])))
+          new-gameobjs (if game-won?
+                         (vec (concat gameobjs [(make-particle fireworks-pos pfx-firework)]))
+                         gameobjs)]
       (set! game-time (+ game-time dt))
       (set! automatic-descent-delay new-automatic-descent-delay)
       (when game-over?
         (set! automatic-descent-active false))
-      [self gameobjs new-resources])
+      [self new-gameobjs new-resources])
 
     :game-over-start
     (let [[new-timer animation-is-over] (tick-timer (:game-over-animation-timer resources) dt)
