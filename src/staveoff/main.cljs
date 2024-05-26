@@ -38,16 +38,3 @@
        (draw-obj gameobj))
      (for [mgr mgrs]
        (draw-mgr mgr gameobjs resources))])))
-
-
-;; TODO
-;; Game state management
-;; x Start menu
-;; x Game begins moment
-;; - Gameplay loop
-;; - Pause menu?
-;; x Win / x loss condition
-;; x Victory screen, x Game over screen (tells you *why* you lost)
-;; vvvv THIS vvvvv
-;; Particle effects system
-;; Available upgrades / upgrade prices / gaining currency
