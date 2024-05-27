@@ -19,7 +19,14 @@
 (defonce expected-game-duration (* 5 60))
 (defonce game-start-descent-request-count 7)
 (defonce automatic-descent-delay-max 5)
-(defonce automatic-descent-delay-min 0.3)
+(defonce automatic-descent-delay-min 0.5)
+
+(defonce
+  faster-ball-starting-prices
+  [50 60 70 80 90])
+(defonce
+  more-ball-starting-prices
+  [55 70 85 90])
 
 ;; Resetable state
 (defonce automatic-descent-active false)
@@ -30,6 +37,9 @@
 (defonce game-win-animation-duration 2)
 (defonce game-time 0)
 (defonce ball-speed 300)
+(defonce money 0)
+(defonce faster-ball-prices faster-ball-starting-prices)
+(defonce more-ball-prices more-ball-starting-prices)
 
 (defn reset-state! []
   (set! automatic-descent-active false)
@@ -37,9 +47,12 @@
   (set! descent-request-count 0)
   (set! descent-animation-duration 0.25)
   (set! game-over-animation-duration 1)
-  (set!  game-win-animation-duration 2)
+  (set! game-win-animation-duration 2)
   (set! game-time 0)
-  (set! ball-speed 300))
+  (set! ball-speed 300)
+  (set! money 0)
+  (set! faster-ball-prices faster-ball-starting-prices)
+  (set! more-ball-prices more-ball-starting-prices))
 
 
 ;; Particle fx

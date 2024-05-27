@@ -1,6 +1,7 @@
 (ns staveoff.gameobj
   (:require [staveoff.state :refer [bounds-rect ball-speed descent-animation-duration game-time
-                                    pfx-paddle-destroyed pfx-brick-destroyed pfx-brick-attack]]
+                                    pfx-paddle-destroyed pfx-brick-destroyed pfx-brick-attack
+                                    money]]
             [numb.time :refer [make-tween tick-tween]]
             [numb.render :refer [compute-text-rect!]]
             [numb.math :refer [clamp ease-out ease-in-ease-out
@@ -254,6 +255,7 @@
   [self resources _input dt]
   (cond-> self
     (= (:game-state resources) :game-win) (assoc :vel (v* (:vel self) (- 1.0 (* 0.6 dt))))
+    (not= (:game-state resources) :game-win) (assoc :vel (v* (v-normalize (:vel self)) ball-speed))
     true (assoc :pos (v+ (:pos self) (v* (:vel self) dt)))
     true (keep-in-bounds bounds-rect)))
 
@@ -305,6 +307,7 @@
 (defmethod on-collision :brick
   [self _]
   (let [center (-> self decompose-rect :center)]
+    (set! money (+ money 1))
     [(make-particle center pfx-brick-destroyed)]))
 
 
@@ -335,8 +338,11 @@
 (defn clicked? [button]
   (= (:ui-state button) :clicked))
 
+(defn disabled? [button]
+  (= (:ui-state button) :disabled))
+
 (defn button-clicked? [button-tag gameobjs]
-  (some #(and (tagged-with? % button-tag) (clicked? %)) gameobjs))
+  (some #(and (tagged-with? % button-tag) (clicked? %) (not (disabled? %))) gameobjs))
 
 ;; FIXME the logic of this is copy pasted from the logic of draw-obj, DRY plz.
 (defn compute-button-bounding-rect [button]
@@ -350,11 +356,13 @@
         is-hovered (rect-contain? rect (-> input :mouse :pos))
         is-down (and is-hovered (-> input :mouse :down (contains? :left)))
         is-clicked (and is-hovered (not is-down) (-> input :mouse :just-released (contains? :left)))]
-    (cond
-      is-clicked (assoc self :ui-state :clicked)
-      is-down (assoc self :ui-state :down)
-      is-hovered (assoc self :ui-state :hovered)
-      :else (assoc self :ui-state nil))))
+    (if (disabled? self)
+      self
+      (cond
+        is-clicked (assoc self :ui-state :clicked)
+        is-down (assoc self :ui-state :down)
+        is-hovered (assoc self :ui-state :hovered)
+        :else (assoc self :ui-state nil)))))
 
 (defmethod draw-obj :button
   [self]
@@ -362,11 +370,16 @@
         {rect-pos :pos rect-size :size} (rect-grow-centered {:pos pos :size size} (:h-padding self) (:v-padding self))
         text-pos (v+ pos text-pos-offset)
         color (cond
+                (disabled? self) "#444"
                 (down? self) "#222"
                 (hovered? self) "#555"
-                :else "#333")]
-    [{:kind :rect :pos rect-pos :size rect-size :fill color :stroke "lightgrey"}
-     {:kind :text :pos text-pos :text (:text self) :font (:font self) :fill "white"}]))
+                :else "#333")
+        text-color (if
+                    (disabled? self)
+                     "#aaa"
+                     "white")]
+    [{:kind :rect :pos rect-pos :size rect-size :fill color :stroke text-color}
+     {:kind :text :pos text-pos :text (:text self) :font (:font self) :fill text-color}]))
 
 
 
@@ -394,8 +407,9 @@
 
 
 
-(defn make-upgrade-button [pos text tag]
-  (-> (make-button pos text tag)
-      (assoc :font "16px sans-serif")
-      (assoc :h-padding 20)
-      (update :tags conj :upgrade-button)))
+(defn make-upgrade-button [pos text tag disabled]
+  (cond-> (make-button pos text tag)
+    true (assoc :font "16px sans-serif")
+    true (assoc :h-padding 20)
+    true (update :tags conj :upgrade-button)
+    disabled (assoc :ui-state :disabled)))

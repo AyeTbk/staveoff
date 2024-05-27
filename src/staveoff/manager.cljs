@@ -12,7 +12,8 @@
                            game-time automatic-descent-delay-max automatic-descent-delay-min
                            game-start-descent-request-count
                            ball-speed ball-speed-upgrade-increment
-                           pfx-firework]]
+                           pfx-firework
+                           money faster-ball-prices more-ball-prices]]
    [staveoff.gameobj :refer [make-paddle make-ball make-brick
                              make-ui-timer make-upgrade-button
                              make-button button-clicked?
@@ -172,23 +173,32 @@
 (defmethod tick-mgr :upgrade-manager
   [self gameobjs resources _input _dt]
   (let [create-upgrade-buttons (fn []
-                                 [(make-upgrade-button [30 310] "Faster ball" :btn-faster-balls)
-                                  (make-upgrade-button [30 360] "More balls" :btn-more-balls)])
+                                 [(make-upgrade-button [30 310] "Faster ball" :btn-faster-balls
+                                                       (< money (first faster-ball-prices)))
+                                  (make-upgrade-button [30 360] "More balls" :btn-more-balls
+                                                       (< money (first more-ball-prices)))])
         destroy-upgrade-buttons (fn [gameobjs]
                                   (vec
                                    (filter #(not (contains? (:tags %) :upgrade-button)) gameobjs)))]
     (case (:game-state resources)
       :game
       (let [new-gameobjs (vec (concat (destroy-upgrade-buttons gameobjs) (create-upgrade-buttons)))]
-
         (cond
           (button-clicked? :btn-faster-balls gameobjs)
           (do
             (set! ball-speed (+ ball-speed ball-speed-upgrade-increment))
+            (set! money (- money (first faster-ball-prices)))
+            (set! faster-ball-prices (if (second faster-ball-prices)
+                                       (next faster-ball-prices)
+                                       faster-ball-prices))
             [self new-gameobjs resources])
 
           (button-clicked? :btn-more-balls gameobjs)
           (let [new-new-gameobjs (vec (concat new-gameobjs [(make-ball)]))]
+            (set! money (- money (first more-ball-prices)))
+            (set! more-ball-prices (if (second more-ball-prices)
+                                     (next more-ball-prices)
+                                     more-ball-prices))
             [self new-new-gameobjs resources])
 
           :else
@@ -208,7 +218,10 @@
   [_ _ resources]
   (case (:game-state resources)
     :game
-    [(merge menu-text {:pos [20 270] :text "Upgrades"})]
+    [(merge menu-text {:pos [20 270] :text "Upgrades"})
+     (merge menu-small-text {:pos [20 220] :text (str "Money: $" money)})
+     (merge menu-small-text {:pos [125 320] :text (str "$" (first faster-ball-prices))})
+     (merge menu-small-text {:pos [125 370] :text (str "$" (first more-ball-prices))})]
     ;else
     []))
 
